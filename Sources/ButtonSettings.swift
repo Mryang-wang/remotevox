@@ -35,7 +35,9 @@ enum T1ButtonAction: String, CaseIterable, Codable {
     case activateChatGPT, right, left, tab, backTab
     case appsMenu, runningApps, showDesktop
     case copy, paste, selectAll, undo, redo
-    case sidebar, findInChat, bottomPanel, keyboardShortcuts, codexMode, newChat
+    case sidebar, findInChat, bottomPanel, keyboardShortcuts, codexMode, newChat, codexSendOrStop
+
+    static let codexAppID = "com.openai.codex"
 
     var definition: (title: String, key: CGKeyCode?, modifiers: CGEventFlags, global: Bool) {
         switch self {
@@ -68,6 +70,7 @@ enum T1ButtonAction: String, CaseIterable, Codable {
         case .keyboardShortcuts: ("打开快捷键表", 44, .maskCommand, false)
         case .codexMode: ("切换到 Codex", 20, .maskControl, true)
         case .newChat: ("Codex 新建对话", 45, .maskCommand, true)
+        case .codexSendOrStop: ("Codex 发送／停止／继续", nil, [], false)
         }
     }
 }

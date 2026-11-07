@@ -146,7 +146,8 @@ struct T1ProfilesView: View {
             })) {
                 ForEach(T1ButtonAction.allCases.filter {
                     ($0 != .native || (button.navigationKeyCode != nil && gesture == .single)) &&
-                    (profileID != nil || $0 != .inherit)
+                    (profileID != nil || $0 != .inherit) &&
+                    ($0 != .codexSendOrStop || (profileID == T1ButtonAction.codexAppID && button == .ok && gesture == .single))
                 }, id: \.self) { action in
                     Text(button == .back && gesture == .single && action == .none ? "默认返回" : action.definition.title)
                         .tag(action)

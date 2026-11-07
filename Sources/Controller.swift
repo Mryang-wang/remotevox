@@ -63,7 +63,9 @@ final class T1Controller {
     private let cancelLocalVoice: () -> Void
     private let connectionChanged: () -> Void
     private let receiverVoiceKey: () -> Bool
-    private let appID = "com.openai.codex"
+    private let appID = T1ButtonAction.codexAppID
+    private let replyStopLabels: Set<String> = ["stop", "停止", "stop generating", "停止生成"]
+    private let replyResumeLabels: Set<String> = ["resume", "继续", "繼續", "恢復"]
     private let startLabels: Set<String> = ["dictate", "听写", "聽寫"]
     private let stopLabels: Set<String> = ["stop dictation", "finish dictation", "停止听写", "结束听写", "停止聽寫", "結束聽寫", "停止口述"]
     private let cancelLabels: Set<String> = ["cancel dictation", "取消听写", "取消聽寫", "starting dictation; click to cancel", "正在启动听写；点击可取消", "正在開始聽寫；按一下即可取消"]
@@ -346,6 +348,9 @@ final class T1Controller {
             if shortcut.keyCode == 3 && shortcut.modifiers == CGEventFlags.maskCommand.rawValue {
                 cacheCodexSearch(after: pid)
             }
+        } else if action == .codexSendOrStop {
+            performCodexOK(pid: pid)
+            return
         } else if let media = [T1ButtonAction.mute: 7, .playPause: 16, .nextTrack: 17, .previousTrack: 18][action] {
             postMedia(media)
         } else if action == .rightClick {
@@ -884,9 +889,37 @@ final class T1Controller {
         return [kAXButtonRole, kAXCheckBoxRole, kAXMenuButtonRole, kAXPopUpButtonRole, "AXToggle"].contains(role)
     }
 
+    private func performCodexOK(pid: pid_t) {
+        guard foregroundPID() == pid else { return }
+        var buttonLabel = ""
+        let button = find(pid) { node in
+            guard value(node, kAXRoleAttribute) as? String == kAXButtonRole else { return false }
+            let names = controlNames(node)
+            let stopping = !replyStopLabels.isDisjoint(with: names)
+            guard stopping || !replyResumeLabels.isDisjoint(with: names),
+                  let parent = value(node, kAXParentAttribute),
+                  CFGetTypeID(parent) == AXUIElementGetTypeID() else { return false }
+            let group = unsafeBitCast(parent, to: AXUIElement.self)
+            let siblings = value(group, kAXChildrenAttribute) as? [AXUIElement] ?? []
+            guard siblings.contains(where: { value($0, kAXRoleAttribute) as? String == kAXTextAreaRole }) else {
+                return false
+            }
+            buttonLabel = stopping ? "停止" : "继续"
+            return true
+        }
+        if let button {
+            if value(button, kAXEnabledAttribute) as? Bool != false,
+               let point = buttonPoint(button), click(at: point, pid: pid) {
+                log("T1 OK：已请求\(buttonLabel) Codex 当前回复")
+            }
+        } else if foregroundPID() == pid {
+            post(36, flags: [])
+            log("T1 OK：Codex 回车")
+        }
+    }
+
     private func buttonPoint(_ labels: Set<String>, pid: pid_t) -> CGPoint? {
         guard foregroundPID() == pid else { return nil }
-        let system = AXUIElementCreateSystemWide()
         var point: CGPoint?
         _ = find(pid) { node in
             guard self.isControl(node), self.value(node, kAXEnabledAttribute) as? Bool != false else { return false }
@@ -897,21 +930,26 @@ final class T1Controller {
                     name == label + " esc" || name == label + " escape"
                 }
             }
-            guard matches, let frame = self.frame(of: node) else { return false }
-            let x = frame.midX, y = frame.midY
-            let dx = min(6, frame.width / 4), dy = min(6, frame.height / 4)
-            // Chromium's hit test can return an outer group at the icon center.
-            // Every fallback point must still hit the same button or its own child.
-            let candidates = [
-                CGPoint(x: x, y: y),
-                CGPoint(x: x + dx, y: y), CGPoint(x: x - dx, y: y),
-                CGPoint(x: x, y: y - dy), CGPoint(x: x, y: y + dy),
-                CGPoint(x: x - dx, y: y - dy), CGPoint(x: x + dx, y: y + dy)
-            ]
-            point = candidates.first { self.hitsButton(node, at: $0, in: system) }
+            guard matches else { return false }
+            point = self.buttonPoint(node)
             return point != nil
         }
         return point
+    }
+
+    private func buttonPoint(_ button: AXUIElement) -> CGPoint? {
+        guard let frame = frame(of: button) else { return nil }
+        let system = AXUIElementCreateSystemWide()
+        let x = frame.midX, y = frame.midY
+        let dx = min(6, frame.width / 4), dy = min(6, frame.height / 4)
+        // Chromium can return the outer group at the center of an icon.
+        let candidates = [
+            CGPoint(x: x, y: y),
+            CGPoint(x: x + dx, y: y), CGPoint(x: x - dx, y: y),
+            CGPoint(x: x, y: y - dy), CGPoint(x: x, y: y + dy),
+            CGPoint(x: x - dx, y: y - dy), CGPoint(x: x + dx, y: y + dy)
+        ]
+        return candidates.first { hitsButton(button, at: $0, in: system) }
     }
 
     private func hitsButton(_ button: AXUIElement, at point: CGPoint, in system: AXUIElement) -> Bool {
@@ -940,7 +978,12 @@ final class T1Controller {
     }
 
     private func clickButton(_ labels: Set<String>, pid: pid_t) -> Bool {
-        guard let point = buttonPoint(labels, pid: pid), foregroundPID() == pid,
+        guard let point = buttonPoint(labels, pid: pid) else { return false }
+        return click(at: point, pid: pid)
+    }
+
+    private func click(at point: CGPoint, pid: pid_t) -> Bool {
+        guard foregroundPID() == pid,
               !CGEventSource.buttonState(.combinedSessionState, button: .left),
               let down = CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown, mouseCursorPosition: point, mouseButton: .left),
               let up = CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp, mouseCursorPosition: point, mouseButton: .left) else { return false }

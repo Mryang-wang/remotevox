@@ -6,7 +6,7 @@
 
 通过蓝牙或 2.4G 接收器，把 T1 遥控器用作 Mac 的麦克风、飞鼠和快捷键控制器。支持简体中文本机听写、Codex 草稿听写和逐 App 按键映射。
 
-[下载安装包 v0.18.1](https://github.com/Mryang-wang/remotevox/releases/tag/v0.18.1) · [遥控器快速上手图](docs/images/quick-start-zh.svg)
+[下载安装包 v0.18.2](https://github.com/Mryang-wang/remotevox/releases/tag/v0.18.2) · [遥控器快速上手图](docs/images/quick-start-zh.svg)
 
 ![RemoteVox 的设备概览，显示连接状态和当前输入设备](docs/images/overview.png)
 
@@ -14,12 +14,12 @@
 
 需要 **Apple Silicon Mac、macOS 27 或更新版本**和支持蓝牙或兼容 2.4G 接收器的 T1 遥控器。安装 Core Audio 驱动需要管理员权限。
 
-1. 从 [v0.18.1 Release](https://github.com/Mryang-wang/remotevox/releases/tag/v0.18.1) 下载 `RemoteVox-0.18.1-arm64.pkg` 和同名 `.sha256` 文件。安装包包含 App 和兼容音频驱动。
+1. 从 [v0.18.2 Release](https://github.com/Mryang-wang/remotevox/releases/tag/v0.18.2) 下载 `RemoteVox-0.18.2-arm64.pkg` 和同名 `.sha256` 文件。安装包包含 App 和兼容音频驱动。
 2. 打开安装包并按提示重启。App 安装到 `/Applications/RemoteVox.app`，驱动安装到 `/Library/Audio/Plug-Ins/HAL/T1SiriInput.driver`。
 3. 打开「应用程序」里的 **RemoteVox**。使用蓝牙时，在「系统设置 → 蓝牙」配对 **T1-Remote**，并为 RemoteVox 允许蓝牙访问。使用 2.4G 时，插入接收器，把遥控器切到 2.4G。
 4. 在「**设备概览 → 连接方式**」选择「**自动（蓝牙优先）**」「**蓝牙**」或「**2.4G**」。手动选项决定 App 使用的链路。蓝牙模式可显示电量，2.4G 暂无电量读数。
 
-此测试安装包尚未经过 Apple 公证。如果 macOS 拦截，先确认来自上述 Release，并在下载目录运行 `shasum -a 256 -c RemoteVox-0.18.1-arm64.pkg.sha256`。校验通过后，如系统提供「仍要打开」，可按提示确认。 [Apple 的安全打开说明](https://support.apple.com/zh-cn/102445)
+此测试安装包尚未经过 Apple 公证。如果 macOS 拦截，先确认来自上述 Release，并在下载目录运行 `shasum -a 256 -c RemoteVox-0.18.2-arm64.pkg.sha256`。校验通过后，如系统提供「仍要打开」，可按提示确认。 [Apple 的安全打开说明](https://support.apple.com/zh-cn/102445)
 
 <details>
 <summary>从早期测试版迁移</summary>
@@ -76,6 +76,8 @@
 4. 单 App 配置可选择「**继承通用设置**」或开启「**原生模式**」。设置保存后，切换前台 App 会自动切换配置。
 
 方向键和键盘模式下的 OK 默认使用原生按键。只改双击或长按时，可以把单击保留为「使用原生按键」。**飞鼠模式下的 OK 用于点击和拖选**。测试 OK 的自定义动作时，先按遥控器左侧长条键下半部关掉飞鼠。前后按键发出相同键码时，共用映射。
+
+要用 OK 控制 Codex 回复，请在「按键映射」中选择 ChatGPT（Codex）的应用配置，将「OK 键 → 单击」设为「**Codex 发送／停止／继续**」。有草稿时可发送，输入框显示「停止」或「继续」时可执行对应动作。
 
 ![按键映射页顶部，显示添加 App 和通用听写开关](docs/images/button-mapping.png)
 

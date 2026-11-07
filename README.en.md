@@ -6,7 +6,7 @@
 
 Use a T1 remote over Bluetooth or a 2.4 GHz receiver as a Mac microphone, air mouse, and shortcut controller. RemoteVox supports on-device Simplified Chinese dictation, voice drafts in Codex, and per-app button mappings.
 
-[Download v0.18.1](https://github.com/Mryang-wang/remotevox/releases/tag/v0.18.1) · [Remote quick-start poster](docs/images/quick-start-en.svg)
+[Download v0.18.2](https://github.com/Mryang-wang/remotevox/releases/tag/v0.18.2) · [Remote quick-start poster](docs/images/quick-start-en.svg)
 
 ![RemoteVox overview with connection status and current audio input](docs/images/overview.png)
 
@@ -16,12 +16,12 @@ The app UI is in Chinese. The instructions below include the labels you will see
 
 You need an **Apple silicon Mac running macOS 27 or later** and a T1 remote that supports Bluetooth or has a compatible 2.4 GHz receiver. Installing the Core Audio driver requires an administrator account.
 
-1. Download `RemoteVox-0.18.1-arm64.pkg` and its matching `.sha256` file from [Release v0.18.1](https://github.com/Mryang-wang/remotevox/releases/tag/v0.18.1). The package contains the app and the compatible audio driver.
+1. Download `RemoteVox-0.18.2-arm64.pkg` and its matching `.sha256` file from [Release v0.18.2](https://github.com/Mryang-wang/remotevox/releases/tag/v0.18.2). The package contains the app and the compatible audio driver.
 2. Open the package and restart when prompted. The app goes to `/Applications/RemoteVox.app` and the driver to `/Library/Audio/Plug-Ins/HAL/T1SiriInput.driver`.
 3. Open **RemoteVox** from Applications. For Bluetooth, pair **T1-Remote** under **System Settings → Bluetooth** and grant the app Bluetooth access. For 2.4 GHz, plug in the receiver and switch the remote to 2.4 GHz.
 4. Under **Device Overview → Connection (设备概览 → 连接方式)**, choose **Automatic (Bluetooth first)**, **Bluetooth**, or **2.4G**. A manual choice tells the app which connection to use. Battery percentage is available over Bluetooth.
 
-The prerelease installer has yet to be notarized by Apple. If macOS blocks it, check that it came from the Release above and run `shasum -a 256 -c RemoteVox-0.18.1-arm64.pkg.sha256` in your download folder. After the checksum passes, follow the system prompt if it offers **Open Anyway**. [Apple’s instructions for opening apps safely](https://support.apple.com/en-us/102445)
+The prerelease installer has yet to be notarized by Apple. If macOS blocks it, check that it came from the Release above and run `shasum -a 256 -c RemoteVox-0.18.2-arm64.pkg.sha256` in your download folder. After the checksum passes, follow the system prompt if it offers **Open Anyway**. [Apple’s instructions for opening apps safely](https://support.apple.com/en-us/102445)
 
 <details>
 <summary>Moving from an earlier test build</summary>
@@ -78,6 +78,8 @@ Switch to a Codex chat and click the composer. **Press once to start**, speak, t
 4. An app profile can **inherit the general settings (继承通用设置)** or use **Native Mode (原生模式)**. The active profile follows the frontmost app.
 
 The direction buttons and keyboard-mode OK use their native actions by default. When mapping only a double or long press, you can leave the single press set to **Use native key (使用原生按键)**. **OK clicks and drags in air-mouse mode**. Turn off air-mouse mode with the lower half of the left rocker before testing a custom OK action. Front and rear buttons share a mapping when they send the same key code.
+
+To control Codex with OK, select the ChatGPT (Codex) app profile in **Button Mapping (按键映射)** and set **OK → Single Press** to **Codex Send / Stop / Resume (Codex 发送／停止／继续)**. Press OK to send a draft, or to activate **Stop** or **Resume** when that button appears in the composer.
 
 ![Button Mapping page with the Add App button and general dictation switch](docs/images/button-mapping.png)
 
