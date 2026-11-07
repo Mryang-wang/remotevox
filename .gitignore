@@ -1,0 +1,23 @@
+# Local build output and previous installed builds
+/Build/
+/.build/
+/.swiftpm/
+
+# Local diagnostic captures and historical test recordings
+/Archive/
+
+# macOS and Xcode per-user metadata
+.DS_Store
+._*
+xcuserdata/
+*.xcuserstate
+
+# Local environment and signing material
+.env
+.env.*
+!.env.example
+*.key
+*.p12
+*.pfx
+*.keychain
+*.keychain-db
