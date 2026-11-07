@@ -23,10 +23,24 @@ final class T1Controller {
     private let searchCloseLabels: Set<String> = ["关闭查找", "關閉尋找", "close find", "close search", "关闭搜索"]
     private let mappingQueue = DispatchQueue(label: "local.codex.t1.mapping")
     private let manager = IOHIDManagerCreate(kCFAllocatorDefault, 0)
+    private var bluetoothDevices = Set<IOHIDDevice>()
+    private var receiverDevices = Set<IOHIDDevice>()
+    private var connectionMode = T1ConnectionMode.automatic
+    private(set) var receiverActive = false
+    var receiverAttached: Bool { !receiverDevices.isEmpty }
+    var transport: T1Transport {
+        if connectionMode == .receiver || (connectionMode == .automatic && bluetoothDevices.isEmpty && receiverAttached) {
+            return .receiver
+        }
+        return .bluetooth
+    }
     private var listening = false
     var hasHIDInput: Bool { listening }
     private var chatActionGeneration = 0
-    private lazy var systemNavigation = T1SystemNavigation(log: log)
+    private lazy var systemNavigation = T1SystemNavigation(log: log, acceptsT1: { [weak self] event in
+        guard let self else { return false }
+        return T1DeviceEvent.transport(event) == self.transport
+    })
     private var keys = Set<UInt32>()
     private var buttonPresses: [T1Button: ButtonPress] = [:]
     private var voiceClick: DispatchWorkItem?
@@ -47,6 +61,8 @@ final class T1Controller {
     private let handlesVoiceKey: () -> Bool
     private let localVoiceKey: () -> Void
     private let cancelLocalVoice: () -> Void
+    private let connectionChanged: () -> Void
+    private let receiverVoiceKey: () -> Bool
     private let appID = "com.openai.codex"
     private let startLabels: Set<String> = ["dictate", "听写", "聽寫"]
     private let stopLabels: Set<String> = ["stop dictation", "finish dictation", "停止听写", "结束听写", "停止聽寫", "結束聽寫", "停止口述"]
@@ -55,13 +71,16 @@ final class T1Controller {
     init(openMic: @escaping () -> Bool, audioReady: @escaping () -> Bool, closeMic: @escaping () -> Void,
          handlesVoiceKey: @escaping () -> Bool, log: @escaping (String) -> Void,
          profiles: T1ProfileStore = .shared, localVoiceKey: @escaping () -> Void = {},
-         cancelLocalVoice: @escaping () -> Void = {}) {
+         cancelLocalVoice: @escaping () -> Void = {}, connectionChanged: @escaping () -> Void = {},
+         receiverVoiceKey: @escaping () -> Bool = { false }) {
         self.openMic = openMic
         self.audioReady = audioReady
         self.closeMic = closeMic
         self.handlesVoiceKey = handlesVoiceKey
         self.localVoiceKey = localVoiceKey
         self.cancelLocalVoice = cancelLocalVoice
+        self.connectionChanged = connectionChanged
+        self.receiverVoiceKey = receiverVoiceKey
         self.log = log
         self.profiles = profiles
         profileObserver = NotificationCenter.default.addObserver(forName: T1ProfileStore.changed, object: profiles, queue: .main) { [weak self] _ in
@@ -92,19 +111,23 @@ final class T1Controller {
         if listening { setupEventTap(); return }
         guard AXIsProcessTrusted(),
               IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) == kIOHIDAccessTypeGranted else { return }
-        IOHIDManagerSetDeviceMatching(manager, [kIOHIDVendorIDKey: 25098, kIOHIDProductIDKey: 1031] as CFDictionary)
-        IOHIDManagerRegisterInputReportCallback(manager, { context, status, _, _, id, report, length in
-            guard let context, status == noErr, length > 0, length <= 10 else { return }
+        IOHIDManagerSetDeviceMatchingMultiple(manager, [
+            [kIOHIDVendorIDKey: 0x620a, kIOHIDProductIDKey: 0x0407],
+            [kIOHIDVendorIDKey: 0x1915, kIOHIDProductIDKey: 0x1025, kIOHIDTransportKey: "USB"]
+        ] as CFArray)
+        IOHIDManagerRegisterInputReportCallback(manager, { context, status, sender, _, id, report, length in
+            guard let context, let sender, status == noErr, length > 0, length <= 16 else { return }
             let controller = Unmanaged<T1Controller>.fromOpaque(context).takeUnretainedValue()
-            controller.onReport(id, Array(UnsafeBufferPointer(start: report, count: length)))
+            let device = Unmanaged<IOHIDDevice>.fromOpaque(sender).takeUnretainedValue()
+            controller.inputReport(id, Array(UnsafeBufferPointer(start: report, count: length)), from: device)
         }, Unmanaged.passUnretained(self).toOpaque())
-        IOHIDManagerRegisterDeviceMatchingCallback(manager, { context, status, _, _ in
+        IOHIDManagerRegisterDeviceMatchingCallback(manager, { context, status, _, device in
             guard let context, status == noErr else { return }
-            Unmanaged<T1Controller>.fromOpaque(context).takeUnretainedValue().applyMapping()
+            Unmanaged<T1Controller>.fromOpaque(context).takeUnretainedValue().deviceChanged(device, attached: true)
         }, Unmanaged.passUnretained(self).toOpaque())
-        IOHIDManagerRegisterDeviceRemovalCallback(manager, { context, _, _, _ in
+        IOHIDManagerRegisterDeviceRemovalCallback(manager, { context, _, _, device in
             guard let context else { return }
-            Unmanaged<T1Controller>.fromOpaque(context).takeUnretainedValue().remoteDisconnected()
+            Unmanaged<T1Controller>.fromOpaque(context).takeUnretainedValue().deviceChanged(device, attached: false)
         }, Unmanaged.passUnretained(self).toOpaque())
         IOHIDManagerScheduleWithRunLoop(manager, CFRunLoopGetMain(), CFRunLoopMode.commonModes.rawValue)
         listening = IOHIDManagerOpen(manager, 0) == kIOReturnSuccess
@@ -113,6 +136,50 @@ final class T1Controller {
         }
         log("控制器输入监控：\(listening ? "就绪" : "未授权")")
         if listening { setupEventTap(); applyMapping() }
+    }
+
+    func selectConnection(_ mode: T1ConnectionMode) {
+        guard mode != connectionMode else { return }
+        let previous = transport
+        connectionMode = mode
+        if transport != previous { remoteDisconnected() }
+        applyMapping()
+        connectionChanged()
+    }
+
+    private func deviceChanged(_ device: IOHIDDevice, attached: Bool) {
+        let previous = transport
+        let isReceiver = IOHIDDeviceGetProperty(device, kIOHIDVendorIDKey as CFString) as? Int == 0x1915
+        if isReceiver {
+            if attached { receiverDevices.insert(device) }
+            else if receiverDevices.remove(device) != nil && !receiverAttached { receiverActive = false }
+        } else {
+            if attached { bluetoothDevices.insert(device) }
+            else { bluetoothDevices.remove(device) }
+        }
+        if transport != previous || (!attached && (isReceiver ? previous == .receiver && !receiverAttached
+                                                             : previous == .bluetooth && bluetoothDevices.isEmpty)) {
+            remoteDisconnected()
+        }
+        applyMapping()
+        connectionChanged()
+    }
+
+    private func inputReport(_ id: UInt32, _ data: [UInt8], from device: IOHIDDevice) {
+        if receiverDevices.contains(device) {
+            if !receiverActive && data.dropFirst(id == 0 ? 0 : 1).contains(where: { $0 != 0 }) {
+                receiverActive = true
+                connectionChanged()
+            }
+            guard transport == .receiver else { return }
+            if id == 0, data.count >= 3 {
+                update(T1Button.menu.rawValue, down: data.dropFirst(2).contains(0x65))
+            } else if id == 2, data.count >= 3 {
+                updateConsumer(UInt16(data[1]) | UInt16(data[2]) << 8, voiceUsage: 0xCF)
+            }
+        } else if transport == .bluetooth {
+            onReport(id, data)
+        }
     }
 
     func requestPermissions() {
@@ -126,6 +193,8 @@ final class T1Controller {
     }
 
     func stop() {
+        applyMapping(restoreReceiver: true)
+        mappingQueue.sync {}
         if let eventTap { CFMachPortInvalidate(eventTap) }
         if let eventTapSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), eventTapSource, .commonModes) }
         eventTap = nil
@@ -162,14 +231,18 @@ final class T1Controller {
             update(0x70065, down: data.dropFirst(3).contains(0x65))
         case 2 where data.count >= 3:
             let usage = UInt16(data[1]) | UInt16(data[2]) << 8
-            update(0xC0221, down: usage == 0x221)
-            update(0xC0223, down: usage == 0x223)
-            update(0xC0224, down: usage == 0x224)
-            update(T1Button.mute.rawValue, down: usage == 0xE2)
+            updateConsumer(usage, voiceUsage: 0x221)
         case 3 where data.count >= 2:
             update(0x10081, down: (data[1] & 1) != 0)
         default: break
         }
+    }
+
+    private func updateConsumer(_ usage: UInt16, voiceUsage: UInt16) {
+        update(0xC0221, down: usage == voiceUsage)
+        update(T1Button.home.rawValue, down: usage == 0x223)
+        update(T1Button.back.rawValue, down: usage == 0x224)
+        update(T1Button.mute.rawValue, down: usage == 0xE2)
     }
 
     private func update(_ key: UInt32, down: Bool) {
@@ -190,7 +263,9 @@ final class T1Controller {
             handleButton(button, down: down)
             return
         }
-        if down, key == 0xC0221, handlesVoiceKey() {
+        if down, key == 0xC0221 {
+            if transport == .receiver && receiverVoiceKey() { return }
+            guard handlesVoiceKey() else { return }
             if NSWorkspace.shared.frontmostApplication?.bundleIdentifier == appID {
                 log("收到 T1 语音键")
                 voicePressed()
@@ -554,43 +629,67 @@ final class T1Controller {
         }
     }
 
-    func applyMapping(nativeOverride: Bool? = nil) {
+    func applyMapping(nativeOverride: Bool? = nil, restoreReceiver: Bool = false) {
         guard listening && AXIsProcessTrusted() else { return }
         let native = nativeOverride ?? profiles.isNative(NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
+        let bluetooth = transport == .bluetooth
+        let usb = receiverAttached
         mappingQueue.async {
-            let match = #"{"VendorID":25098,"ProductID":1031,"Product":"T1-Remote"}"#
-            let pipe = Pipe()
-            let read = Process()
-            read.executableURL = URL(fileURLWithPath: "/usr/bin/hidutil")
-            read.arguments = ["property", "--matching", match, "--get", "UserKeyMapping"]
-            read.standardOutput = pipe
-            guard (try? read.run()) != nil else { return }
-            let bytes = pipe.fileHandleForReading.readDataToEndOfFile()
-            read.waitUntilExit()
-            guard read.terminationStatus == 0, let text = String(data: bytes, encoding: .utf8),
-                  text.contains("UserKeyMapping") else { return }
-            func values(_ field: String) -> [UInt64] {
-                text.components(separatedBy: .newlines).compactMap { line in
-                    guard line.contains(field), let part = line.split(separator: "=").last else { return nil }
-                    return UInt64(part.trimmingCharacters(in: CharacterSet(charactersIn: " ;\t")))
-                }
+            if !restoreReceiver {
+                Self.applyMapping(
+                    matching: #"{"VendorID":25098,"ProductID":1031,"Product":"T1-Remote"}"#,
+                    native: native || !bluetooth, keepPower: bluetooth)
             }
-            let src = values("HIDKeyboardModifierMappingSrc")
-            let dst = values("HIDKeyboardModifierMappingDst")
-            guard src.count == dst.count, Set(src).count == src.count else { return }
-            let original = Dictionary(uniqueKeysWithValues: zip(src, dst))
-            let mapping = T1DeviceMapping.apply(to: original, native: native)
-            guard mapping != original else { return }
-            let json = mapping.map { ["HIDKeyboardModifierMappingSrc": $0.key, "HIDKeyboardModifierMappingDst": $0.value] }
-            guard let data = try? JSONSerialization.data(withJSONObject: ["UserKeyMapping": json]),
-                  let payload = String(data: data, encoding: .utf8) else { return }
-            let write = Process()
-            write.executableURL = read.executableURL
-            write.arguments = ["property", "--matching", match, "--set", payload]
-            write.standardOutput = FileHandle.nullDevice
-            write.standardError = FileHandle.nullDevice
-            if (try? write.run()) != nil { write.waitUntilExit() }
+            if usb {
+                let usbNative = native || bluetooth || restoreReceiver
+                Self.applyMapping(
+                    matching: #"{"VendorID":6421,"ProductID":4133,"Transport":"USB","PrimaryUsagePage":1,"PrimaryUsage":6}"#,
+                    native: usbNative, replacements: [0x700000065: 0x70000006F], keepPower: false)
+                Self.applyMapping(
+                    matching: #"{"VendorID":6421,"ProductID":4133,"Transport":"USB","PrimaryUsagePage":1,"PrimaryUsage":2}"#,
+                    native: usbNative, replacements: [
+                        0xC000000CF: 0x70000006D, 0xC00000224: 0x70000006C,
+                        0xC00000223: 0x70000006B, 0xC000000E2: 0x700000068
+                    ], keepPower: false)
+            }
         }
+    }
+
+    private static func applyMapping(matching match: String, native: Bool,
+                                     replacements: [UInt64: UInt64] = T1DeviceMapping.replacements,
+                                     keepPower: Bool) {
+        let pipe = Pipe()
+        let read = Process()
+        read.executableURL = URL(fileURLWithPath: "/usr/bin/hidutil")
+        read.arguments = ["property", "--matching", match, "--get", "UserKeyMapping"]
+        read.standardOutput = pipe
+        guard (try? read.run()) != nil else { return }
+        let bytes = pipe.fileHandleForReading.readDataToEndOfFile()
+        read.waitUntilExit()
+        guard read.terminationStatus == 0, let text = String(data: bytes, encoding: .utf8),
+              text.contains("UserKeyMapping") else { return }
+        func values(_ field: String) -> [UInt64] {
+            text.components(separatedBy: .newlines).compactMap { line in
+                guard line.contains(field), let part = line.split(separator: "=").last else { return nil }
+                return UInt64(part.trimmingCharacters(in: CharacterSet(charactersIn: " ;\t")))
+            }
+        }
+        let src = values("HIDKeyboardModifierMappingSrc")
+        let dst = values("HIDKeyboardModifierMappingDst")
+        guard src.count == dst.count, Set(src).count == src.count else { return }
+        let original = Dictionary(uniqueKeysWithValues: zip(src, dst))
+        let mapping = T1DeviceMapping.apply(to: original, native: native,
+                                            replacements: replacements, keepPower: keepPower)
+        guard mapping != original else { return }
+        let json = mapping.map { ["HIDKeyboardModifierMappingSrc": $0.key, "HIDKeyboardModifierMappingDst": $0.value] }
+        guard let data = try? JSONSerialization.data(withJSONObject: ["UserKeyMapping": json]),
+              let payload = String(data: data, encoding: .utf8) else { return }
+        let write = Process()
+        write.executableURL = read.executableURL
+        write.arguments = ["property", "--matching", match, "--set", payload]
+        write.standardOutput = FileHandle.nullDevice
+        write.standardError = FileHandle.nullDevice
+        if (try? write.run()) != nil { write.waitUntilExit() }
     }
 
     private func setupEventTap() {
@@ -619,7 +718,7 @@ final class T1Controller {
             return false
         }
         guard event.getIntegerValueField(.eventSourceUserData) != T1DeviceEvent.tag,
-              T1DeviceEvent.isT1(event) else { return false }
+              T1DeviceEvent.transport(event) == transport else { return false }
         if type == .keyDown || type == .keyUp {
             let code = event.getIntegerValueField(.keyboardEventKeycode)
             if T1DeviceEvent.placeholderKeys.contains(code) { return true }

@@ -4,21 +4,22 @@
 
 <img src="Assets/T1AppIcon.png" alt="T1 Controller 图标" width="80">
 
-把蓝牙 T1 遥控器用作 Mac 的麦克风、飞鼠和快捷键控制器。支持简体中文本机听写、Codex 草稿听写和逐 App 按键映射。
+通过蓝牙或 2.4G 接收器，把 T1 遥控器用作 Mac 的麦克风、飞鼠和快捷键控制器。支持简体中文本机听写、Codex 草稿听写和逐 App 按键映射。
 
-[下载安装包 v0.17.1](https://github.com/Mryang-wang/t1-controller/releases/tag/v0.17.1) · [遥控器快速上手图](docs/images/quick-start-zh.svg)
+[下载安装包 v0.18.0](https://github.com/Mryang-wang/t1-controller/releases/tag/v0.18.0) · [遥控器快速上手图](docs/images/quick-start-zh.svg)
 
 ![T1 Controller 的设备概览，显示连接状态和当前输入设备](docs/images/overview.png)
 
 ## 1. 安装并连接
 
-需要 **Apple Silicon Mac、macOS 27 或更新版本**和可通过蓝牙连接的 T1 遥控器。安装 Core Audio 驱动需要管理员权限。
+需要 **Apple Silicon Mac、macOS 27 或更新版本**和支持蓝牙或兼容 2.4G 接收器的 T1 遥控器。安装 Core Audio 驱动需要管理员权限。
 
-1. 从 [v0.17.1 Release](https://github.com/Mryang-wang/t1-controller/releases/tag/v0.17.1) 下载 `T1-Controller-0.17.1-arm64.pkg` 和同名 `.sha256` 文件。安装包包含 App 和兼容音频驱动。
+1. 从 [v0.18.0 Release](https://github.com/Mryang-wang/t1-controller/releases/tag/v0.18.0) 下载 `T1-Controller-0.18.0-arm64.pkg` 和同名 `.sha256` 文件。安装包包含 App 和兼容音频驱动。
 2. 打开安装包并按提示重启。App 安装到 `/Applications/T1 Controller.app`，驱动安装到 `/Library/Audio/Plug-Ins/HAL/T1SiriInput.driver`。
-3. 打开「系统设置 → 蓝牙」，让遥控器进入配对状态，连接 **T1-Remote**。打开「应用程序」里的 **T1 Controller**，允许蓝牙访问。
+3. 打开「应用程序」里的 **T1 Controller**。使用蓝牙时，在「系统设置 → 蓝牙」配对 **T1-Remote**，并为 T1 Controller 允许蓝牙访问。使用 2.4G 时，插入接收器，把遥控器切到 2.4G。
+4. 在「**设备概览 → 连接方式**」选择「**自动（蓝牙优先）**」「**蓝牙**」或「**2.4G**」。手动选项决定 App 使用的链路。蓝牙模式可显示电量，2.4G 暂无电量读数。
 
-此测试安装包尚未经过 Apple 公证。如果 macOS 拦截，先确认来自上述 Release，并在下载目录运行 `shasum -a 256 -c T1-Controller-0.17.1-arm64.pkg.sha256`。校验通过后，如系统提供「仍要打开」，可按提示确认。 [Apple 的安全打开说明](https://support.apple.com/zh-cn/102445)
+此测试安装包尚未经过 Apple 公证。如果 macOS 拦截，先确认来自上述 Release，并在下载目录运行 `shasum -a 256 -c T1-Controller-0.18.0-arm64.pkg.sha256`。校验通过后，如系统提供「仍要打开」，可按提示确认。 [Apple 的安全打开说明](https://support.apple.com/zh-cn/102445)
 
 <details>
 <summary>从早期测试版迁移</summary>
@@ -36,6 +37,7 @@
 | 蓝牙 | 连接 T1 并接收麦克风音频 |
 | 辅助功能 | 执行自定义快捷键、控制 Codex 听写和写入文本框 |
 | 输入监控 | 识别 T1 遥控器的实体按键 |
+| 麦克风 | 使用 2.4G 接收器首次收音时授权 |
 
 系统要求退出并重新打开 App 时，按提示操作。然后点「**打开声音输入**」，在「声音 → 输入」选择 **T1 USB-Compatible Mic**。在「输出」保留平时使用的扬声器或耳机。Codex 或通话 App 首次读取麦克风时，按系统提示为对应 App 授权。
 
@@ -92,11 +94,11 @@
 | 静音 | 切换静音 | 可配置 | 可配置 |
 | 上、下、左、右 | 原生方向键，可配置 | 可配置 | 可配置 |
 | OK | 原生确认或飞鼠左键 | 键盘模式下可配置 | 键盘模式下可配置 |
-| 电源 | 锁屏 | 锁屏并熄屏 | 弹出关机确认 |
+| 电源（蓝牙） | 锁屏 | 锁屏并熄屏 | 弹出关机确认 |
 
 ## 常见问题
 
-- **App 显示等待 T1。** 唤醒遥控器，在蓝牙设置确认 `T1-Remote` 已连接，再检查 App 的蓝牙权限。
+- **App 显示等待 T1。** 唤醒遥控器，在蓝牙设置确认 `T1-Remote` 已连接，再检查 App 的蓝牙权限。使用 2.4G 时，检查接收器是否插好，遥控器是否切到 2.4G，并按一次键确认连接。
 - **找不到 T1 输入设备。** 安装后先重启，再在「声音 → 输入」查找 `T1 USB-Compatible Mic`。
 - **有波纹，但没有文字。** 确认已准备简体中文模型、已开启通用听写，并让光标留在原来的可编辑文本框。Codex 则检查默认声音输入和它自己的麦克风权限。
 - **OK 仍然点击鼠标。** 关掉飞鼠后再测试键盘模式下的 OK 映射。

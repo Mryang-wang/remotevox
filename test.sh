@@ -27,7 +27,7 @@ import sys
 source = Path(sys.argv[1]).read_text()
 source = source.replace('private func onReport(', 'func onReport(')
 source = source.replace('private func handleEvent(', 'func handleEvent(')
-source = source.replace('T1DeviceEvent.isT1(event)', 'testIsT1')
+source = source.replace('T1DeviceEvent.transport(event) == transport', 'testIsT1')
 source = source.replace('AXIsProcessTrusted(), !profiles.recordingShortcut', '!profiles.recordingShortcut')
 source = source.replace('guard let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier else { return }', 'let pid: pid_t = 123')
 source = source.replace('NSWorkspace.shared.frontmostApplication?.bundleIdentifier', 'testAppID')

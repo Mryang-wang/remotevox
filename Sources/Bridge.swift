@@ -2,6 +2,7 @@ import ApplicationServices
 import IOKit.hid
 import AppKit
 import AudioToolbox
+import AVFoundation
 import CoreAudio
 import CoreBluetooth
 import Foundation
@@ -204,6 +205,86 @@ final class Loopback {
     deinit { close() }
 }
 
+private final class ReceiverMicrophone {
+    private var queue: AudioQueueRef?
+    private var receive: (([Int16]) -> Void)?
+
+    func open(receive: @escaping ([Int16]) -> Void) throws {
+        guard let device = try audioDevices().first(where: {
+            (stringProperty($0, kAudioObjectPropertyName) as String?) == "Mic Device" &&
+            (stringProperty($0, kAudioObjectPropertyManufacturer) as String?) == "XING WEI 2.4G USB"
+        }), let uid = stringProperty(device, kAudioDevicePropertyDeviceUID) else {
+            throw BridgeError.audio("查找 2.4G 接收器麦克风", kAudioHardwareBadDeviceError)
+        }
+
+        var format = AudioStreamBasicDescription(
+            mSampleRate: 16000, mFormatID: kAudioFormatLinearPCM,
+            mFormatFlags: kLinearPCMFormatFlagIsSignedInteger | kLinearPCMFormatFlagIsPacked,
+            mBytesPerPacket: 2, mFramesPerPacket: 1, mBytesPerFrame: 2,
+            mChannelsPerFrame: 1, mBitsPerChannel: 16, mReserved: 0)
+        let status = AudioQueueNewInput(&format, { context, queue, buffer, _, _, _ in
+            guard let context else { return }
+            let microphone = Unmanaged<ReceiverMicrophone>.fromOpaque(context).takeUnretainedValue()
+            microphone.read(queue, buffer)
+        }, Unmanaged.passUnretained(self).toOpaque(), CFRunLoopGetMain(), CFRunLoopMode.commonModes.rawValue, 0, &queue)
+        guard status == noErr, let queue else {
+            throw BridgeError.audio("创建 2.4G 音频输入", status)
+        }
+
+        do {
+            var target: CFString? = uid
+            let size = UInt32(MemoryLayout.size(ofValue: target))
+            let route = withUnsafePointer(to: &target) {
+                AudioQueueSetProperty(queue, kAudioQueueProperty_CurrentDevice, $0, size)
+            }
+            guard route == noErr else { throw BridgeError.audio("选择 2.4G 麦克风", route) }
+            try verify(queue, uid: uid)
+            for _ in 0..<3 {
+                var buffer: AudioQueueBufferRef?
+                let allocation = AudioQueueAllocateBuffer(queue, 1024, &buffer)
+                guard allocation == noErr, let buffer else { throw BridgeError.audio("分配 2.4G 音频缓冲", allocation) }
+                let enqueue = AudioQueueEnqueueBuffer(queue, buffer, 0, nil)
+                guard enqueue == noErr else { throw BridgeError.audio("准备 2.4G 音频缓冲", enqueue) }
+            }
+            self.receive = receive
+            let start = AudioQueueStart(queue, nil)
+            guard start == noErr else { throw BridgeError.audio("启动 2.4G 麦克风", start) }
+            try verify(queue, uid: uid)
+        } catch {
+            close()
+            throw error
+        }
+    }
+
+    private func verify(_ queue: AudioQueueRef, uid: CFString) throws {
+        var actual: CFString?
+        var size = UInt32(MemoryLayout.size(ofValue: actual))
+        let status = withUnsafeMutablePointer(to: &actual) {
+            AudioQueueGetProperty(queue, kAudioQueueProperty_CurrentDevice, $0, &size)
+        }
+        guard status == noErr, (actual as String?) == (uid as String) else {
+            throw BridgeError.audio("核对 2.4G 麦克风", status == noErr ? kAudioHardwareBadDeviceError : status)
+        }
+    }
+
+    private func read(_ queue: AudioQueueRef, _ buffer: AudioQueueBufferRef) {
+        guard queue == self.queue else { return }
+        let data = buffer.pointee.mAudioData.assumingMemoryBound(to: Int16.self)
+        let count = Int(buffer.pointee.mAudioDataByteSize) / MemoryLayout<Int16>.size
+        if count > 0 { receive?(Array(UnsafeBufferPointer(start: data, count: count))) }
+        if queue == self.queue { AudioQueueEnqueueBuffer(queue, buffer, 0, nil) }
+    }
+
+    func close() {
+        receive = nil
+        guard let queue else { return }
+        self.queue = nil
+        AudioQueueDispose(queue, true)
+    }
+
+    deinit { close() }
+}
+
 enum T1Audio {
     private static let steps = [7,8,9,10,11,12,13,14,16,17,19,21,23,25,28,31,34,37,41,45,50,55,60,66,73,80,
         88,97,107,118,130,143,157,173,190,209,230,253,279,307,337,371,408,449,494,544,598,658,724,796,876,963,
@@ -313,7 +394,10 @@ final class DefaultInputActivity {
 
 final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, CBPeripheralDelegate {
     private let uuid = (1...4).map { CBUUID(string: "AB5E000\($0)-5A21-4F05-BC7D-AF01F617B664") }
+    private let batteryService = CBUUID(string: "180F")
+    private let batteryLevel = CBUUID(string: "2A19")
     private let sink = Loopback()
+    private let receiverMicrophone = ReceiverMicrophone()
     private var localCapture = false
     private lazy var localDictation = T1LocalDictation(openMic: { [weak self] in
         guard let self, self.ready, !self.recording, self.inputClients.isEmpty else { return false }
@@ -345,7 +429,21 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
        handlesVoiceKey: { [weak self] in self.map { !$0.buttonStartsRecording && $0.canControlDictation } ?? false },
        log: { [weak self] in self?.log($0) },
        localVoiceKey: { [weak self] in self?.localDictation.voicePressed() },
-       cancelLocalVoice: { [weak self] in self?.localDictation.cancel() })
+       cancelLocalVoice: { [weak self] in self?.localDictation.cancel() },
+       connectionChanged: { [weak self] in self?.connectionChanged() },
+       receiverVoiceKey: { [weak self] in
+           guard let self else { return false }
+           let localDictationEnabled = UserDefaults.standard.bool(forKey: T1ProfileStore.localDictationEnabledKey)
+           let codex = NSWorkspace.shared.frontmostApplication?.bundleIdentifier == "com.openai.codex"
+           if self.buttonStartsRecording || (self.canControlDictation && (localDictationEnabled || codex)) {
+               guard self.receiverMicrophoneAuthorized(request: true) else { return true }
+           }
+           guard self.buttonStartsRecording else { return false }
+           if !self.automaticMic {
+               if self.recording { self.stopRecording() } else { self.startRecording() }
+           }
+           return true
+       })
     private var panel: NSPanel?
     private let dashboard = T1DashboardModel()
     private var nextMeterUpdate: TimeInterval = 0
@@ -353,8 +451,12 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
     private var remote: CBPeripheral?
     private var tx: CBCharacteristic?
     private var subscriptions = Set<CBUUID>()
-    private var ready = false
+    private var bluetoothReady = false
+    private var bluetoothBattery: Int?
+    private var transport: T1Transport { testMode ? .bluetooth : controller.transport }
+    private var ready: Bool { transport == .bluetooth ? bluetoothReady : controller.receiverAttached }
     private var recording = false
+    private var recordingTransport: T1Transport?
     private var automaticMic = false
     private var inputClients = Set<AudioObjectID>()
     private var stopInputObserver: (() -> Void)?
@@ -407,6 +509,7 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
         }
         if !testMode {
             log("控制授权：辅助功能=\(AXIsProcessTrusted()) 输入监控=\(IOHIDCheckAccess(kIOHIDRequestTypeListenEvent).rawValue)")
+            selectConnection()
             controller.setupInput()
             if arguments.contains("--request-controller-access") { controller.requestPermissions() }
         }
@@ -428,7 +531,7 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
             stopInputObserver = { activity.stop() }
             activity.start()
         }
-        setStatus("正在连接 T1")
+        if transport == .bluetooth { setStatus("正在连接 T1") }
         central = CBCentralManager(delegate: self, queue: .main)
         timer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
             guard let self else { return }
@@ -444,12 +547,14 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
             findRemote()
         } else {
             resetRemote()
-            setStatus(central.state == .unauthorized ? "请在隐私与安全性中允许蓝牙" : "蓝牙尚未就绪")
+            if transport == .bluetooth {
+                setStatus(central.state == .unauthorized ? "请在隐私与安全性中允许蓝牙" : "蓝牙尚未就绪")
+            }
         }
     }
 
     private func findRemote() {
-        guard let central, central.state == .poweredOn, remote == nil else { return }
+        guard let central, central.state == .poweredOn, remote == nil, transport == .bluetooth else { return }
         let identifiers = [uuid[0]] + ["180A", "180F", "AE40", "AE00"].map { CBUUID(string: $0) }
         guard let target = central.retrieveConnectedPeripherals(withServices: identifiers)
             .first(where: { $0.name == "T1-Remote" }) else {
@@ -466,7 +571,7 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         if testMode { log("CONNECTED") }
-        peripheral.discoverServices([uuid[0]])
+        peripheral.discoverServices([uuid[0], batteryService])
     }
 
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
@@ -475,23 +580,16 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         resetRemote()
-        setStatus("T1 已断开，等待重连")
+        if transport == .bluetooth { setStatus("T1 已断开，等待重连") }
     }
 
     private func resetRemote() {
-        if recording { logSummary("disconnected") }
-        releaseReopen?.cancel()
-        releaseReopen = nil
-        localCapture = false
-        if !testMode { controller.remoteDisconnected() }
-        watchdog?.invalidate()
-        recording = false
-        automaticMic = false
-        ready = false
-        if dictationFramesAtStart != nil {
-            dictationFramesAtStart = nil
-            if !testMode { controller.microphoneInterrupted() }
+        bluetoothReady = false
+        bluetoothBattery = nil
+        if transport == .bluetooth && !testMode {
+            controller.remoteDisconnected()
         }
+        if recordingTransport == .bluetooth { finish("disconnected") }
         tx = nil
         subscriptions.removeAll()
         remote = nil
@@ -499,15 +597,26 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
+        guard peripheral === remote else { return }
         guard let service = peripheral.services?.first(where: { $0.uuid == uuid[0] }) else {
             central?.cancelPeripheralConnection(peripheral)
             return
         }
         peripheral.discoverCharacteristics(Array(uuid.dropFirst()), for: service)
+        if let battery = peripheral.services?.first(where: { $0.uuid == batteryService }) {
+            peripheral.discoverCharacteristics([batteryLevel], for: battery)
+        }
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
+        guard peripheral === remote else { return }
         let chars = service.characteristics ?? []
+        if service.uuid == batteryService {
+            guard error == nil, let level = chars.first(where: { $0.uuid == batteryLevel }) else { return }
+            if level.properties.contains(.read) { peripheral.readValue(for: level) }
+            if level.properties.contains(.notify) { peripheral.setNotifyValue(true, for: level) }
+            return
+        }
         tx = chars.first(where: { $0.uuid == uuid[1] })
         guard tx != nil, chars.count == 3 else {
             central?.cancelPeripheralConnection(peripheral)
@@ -519,6 +628,7 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
     }
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
+        guard peripheral === remote, characteristic.uuid != batteryLevel else { return }
         guard error == nil, characteristic.isNotifying else {
             central?.cancelPeripheralConnection(peripheral)
             return
@@ -528,28 +638,16 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
     }
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-        guard error == nil, let data = characteristic.value, let command = data.first else { return }
+        guard peripheral === remote, error == nil, let data = characteristic.value, let command = data.first else { return }
+        if characteristic.uuid == batteryLevel {
+            guard data.count == 1, command <= 100 else { return }
+            bluetoothBattery = Int(command)
+            refreshDashboard()
+            return
+        }
         if characteristic.uuid == uuid[2] {
-            guard recording, releaseReopen == nil, let pcm = T1Audio.decode(data) else { return }
-            let now = Date()
-            if let lastPacket {
-                widestGap = max(widestGap, now.timeIntervalSince(lastPacket))
-            } else if testMode || dictationFramesAtStart != nil || automaticMic {
-                log("FIRST_FRAME")
-            }
-            lastPacket = now
-            packets += 1
-            sink.push(pcm)
-            if localCapture { localDictation.receive(pcm) }
-            if panel?.isVisible == true, now.timeIntervalSinceReferenceDate >= nextMeterUpdate {
-                nextMeterUpdate = now.timeIntervalSinceReferenceDate + 0.10
-                let meanSquare = pcm.reduce(0.0) { sum, sample in
-                    let amplitude = Double(sample) / 32768
-                    return sum + amplitude * amplitude
-                } / Double(pcm.count)
-                let dB = 10 * log10(max(meanSquare, 1e-9))
-                dashboard.level = min(1, max(0, (dB + 58) / 50))
-            }
+            guard recordingTransport == .bluetooth, releaseReopen == nil, let pcm = T1Audio.decode(data) else { return }
+            receivePCM(pcm)
             return
         }
         if testMode || ((dictationFramesAtStart != nil || localCapture) && command != 0x08) {
@@ -557,9 +655,10 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
         }
         switch command {
         case 0x0B:
-            ready = data == Data([0x0B, 0, 4, 0, 2, 0, 134, 0, 134])
-            setStatus(ready ? idleStatus : "T1 返回了未验证的音频格式")
-            if ready {
+            bluetoothReady = data == Data([0x0B, 0, 4, 0, 2, 0, 134, 0, 134])
+            guard transport == .bluetooth else { return }
+            setStatus(bluetoothReady ? idleStatus : "T1 返回了未验证的音频格式")
+            if bluetoothReady {
                 if testMode || (!controller.hasHIDInput &&
                     !T1ProfileStore.shared.isNative(NSWorkspace.shared.frontmostApplication?.bundleIdentifier)) {
                     controller.applyVoiceFallbackMapping()
@@ -571,13 +670,13 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
                     if arguments.contains("--test-host-start") && !completedTest { startRecording() }
                 }
             }
-        case 0x08 where ready && buttonStartsRecording && !completedTest && !automaticMic:
+        case 0x08 where transport == .bluetooth && bluetoothReady && buttonStartsRecording && !completedTest && !automaticMic:
             if recording { stopRecording() } else { startRecording() }
-        case 0x08 where ready && !testMode && !controller.hasHIDInput && canControlDictation:
+        case 0x08 where transport == .bluetooth && bluetoothReady && !testMode && !controller.hasHIDInput && canControlDictation:
             log("收到 T1 语音请求（蓝牙）")
             controller.voicePressed()
         case 0x00:
-            guard recording else { return }
+            guard recordingTransport == .bluetooth else { return }
             if data.count >= 2, data[1] == 2, dictationFramesAtStart != nil || localCapture {
                 reopenAfterButtonRelease()
             } else {
@@ -593,6 +692,43 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
         remote.writeValue(Data(message), for: tx, type: tx.properties.contains(.write) ? .withResponse : .withoutResponse)
     }
 
+    private func selectConnection() {
+        let saved = UserDefaults.standard.string(forKey: T1ConnectionMode.storageKey)
+        controller.selectConnection(saved.flatMap(T1ConnectionMode.init(rawValue:)) ?? .automatic)
+    }
+
+    private func connectionChanged() {
+        let changed = dashboard.transport != transport
+        if let source = recordingTransport, source != transport || !ready {
+            localDictation.cancel()
+            finish("connection changed")
+        }
+        if !recording && (changed || transport == .receiver) {
+            setStatus(ready ? idleStatus : transport == .receiver ? "等待 2.4G 接收器" : "等待 T1 蓝牙连接")
+        } else {
+            refreshDashboard()
+        }
+        if transport == .bluetooth { findRemote() }
+        if !inputClients.isEmpty { inputClientsChanged(inputClients) }
+    }
+
+    private func receiverMicrophoneAuthorized(request: Bool) -> Bool {
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized: return true
+        case .notDetermined where request:
+            setStatus("请允许麦克风访问，再试一次")
+            AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
+                DispatchQueue.main.async {
+                    guard let self, self.transport == .receiver, !self.recording else { return }
+                    self.setStatus(granted ? "麦克风已授权，请再试一次" : "请在隐私与安全性中允许麦克风")
+                }
+            }
+        default:
+            if request { setStatus("请在隐私与安全性中允许麦克风") }
+        }
+        return false
+    }
+
     private var idleStatus: String {
         buttonStartsRecording ? "已连接，按 T1 语音键或在窗口开启" : "已连接，可开启麦克风"
     }
@@ -603,9 +739,23 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
         if ready && !recording { setStatus(idleStatus) }
     }
 
-    private func startRecording() {
+    private func startRecording(requestPermission: Bool = true) {
         guard ready, !recording, !completedTest, !arguments.contains("--ui-preview") else { return }
+        let source = transport
+        if source == .receiver {
+            guard receiverMicrophoneAuthorized(request: requestPermission) else { return }
+            do {
+                try receiverMicrophone.open { [weak self] pcm in
+                    guard let self, self.recordingTransport == .receiver else { return }
+                    self.receivePCM(pcm)
+                }
+            } catch {
+                setStatus(error.localizedDescription)
+                return
+            }
+        }
         recording = true
+        recordingTransport = source
         recoveredRelease = false
         started = Date()
         lastKeepalive = started
@@ -613,11 +763,33 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
         nextReport = 10
         packets = 0
         widestGap = 0
-        send([0x0C, 0, 2])
+        if source == .bluetooth { send([0x0C, 0, 2]) }
         setStatus("麦克风已开启，输出到 \(deviceName)")
         if testMode { log("START \(arguments.contains("--test-host-start") ? "host" : "button")") }
         watchdog?.invalidate()
         watchdog = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in self?.checkStream() }
+    }
+
+    private func receivePCM(_ pcm: [Int16]) {
+        let now = Date()
+        if let lastPacket {
+            widestGap = max(widestGap, now.timeIntervalSince(lastPacket))
+        } else if testMode || dictationFramesAtStart != nil || automaticMic {
+            log("FIRST_FRAME")
+        }
+        lastPacket = now
+        packets += 1
+        sink.push(pcm)
+        if localCapture { localDictation.receive(pcm) }
+        if panel?.isVisible == true, now.timeIntervalSinceReferenceDate >= nextMeterUpdate {
+            nextMeterUpdate = now.timeIntervalSinceReferenceDate + 0.10
+            let meanSquare = pcm.reduce(0.0) { sum, sample in
+                let amplitude = Double(sample) / 32768
+                return sum + amplitude * amplitude
+            } / Double(pcm.count)
+            let dB = 10 * log10(max(meanSquare, 1e-9))
+            dashboard.level = min(1, max(0, (dB + 58) / 50))
+        }
     }
 
     private func reopenAfterButtonRelease() {
@@ -653,8 +825,9 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
                 return
             }
             guard ready, !recording, currentInputName() == compatibilityInput else { return }
+            if transport == .receiver && !controller.receiverActive { return }
             dictationOpenRetried = false
-            startRecording()
+            startRecording(requestPermission: false)
             automaticMic = recording
             if automaticMic { log("有 App 正在读取 T1 默认输入，已开启 T1 收音") }
         } else if automaticMic {
@@ -666,7 +839,8 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
         guard let started, recording, releaseReopen == nil else { return }
         let now = Date()
         let elapsed = now.timeIntervalSince(started)
-        if (dictationFramesAtStart != nil || automaticMic || localCapture), lastPacket == nil, elapsed >= 0.7, !dictationOpenRetried {
+        if recordingTransport == .bluetooth, (dictationFramesAtStart != nil || automaticMic || localCapture),
+           lastPacket == nil, elapsed >= 0.7, !dictationOpenRetried {
             dictationOpenRetried = true
             log("尚未收到音频，重试一次开启 T1")
             send([0x0C, 0, 2])
@@ -679,7 +853,7 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
             finish("test completed")
             return
         }
-        if lastPacket != nil && !arguments.contains("--no-keepalive"),
+        if recordingTransport == .bluetooth, lastPacket != nil && !arguments.contains("--no-keepalive"),
            let lastKeepalive, now.timeIntervalSince(lastKeepalive) >= 10 {
             self.lastKeepalive = now
             if testMode { log("KEEPALIVE \(Int(elapsed))s") }
@@ -708,12 +882,15 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
         guard recording else { return }
         logSummary(reason)
         recording = false
+        let source = recordingTransport
+        recordingTransport = nil
         releaseReopen?.cancel()
         releaseReopen = nil
-        completedTest = testMode
+        completedTest = testMode && reason != "disconnected"
         watchdog?.invalidate()
-        send([0x0D])
-        setStatus(ready ? idleStatus : "等待 T1")
+        if source == .receiver { receiverMicrophone.close() }
+        else { send([0x0D]) }
+        setStatus(ready ? idleStatus : transport == .receiver ? "等待 2.4G 接收器" : "等待 T1")
         if localCapture {
             localCapture = false
             localDictation.streamStopped()
@@ -738,6 +915,10 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
     private func refreshDashboard() {
         guard !arguments.contains("--ui-preview") else { return }
         dashboard.ready = ready
+        dashboard.transport = transport
+        dashboard.receiverAttached = !testMode && controller.receiverAttached
+        dashboard.receiverActive = !testMode && controller.receiverActive
+        dashboard.battery = transport == .bluetooth ? bluetoothBattery : nil
         dashboard.recording = recording
         if !recording { dashboard.level = 0 }
         dashboard.defaultInput = currentInputName() ?? "未找到输入"
@@ -765,7 +946,8 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
                     self.controller.requestPermissions()
                     self.refreshDashboard()
                 },
-                modeChanged: { [weak self] in self?.changeButtonMode() }))
+                modeChanged: { [weak self] in self?.changeButtonMode() },
+                connectionModeChanged: { [weak self] in self?.selectConnection() }))
             window.center()
             panel = window
         }

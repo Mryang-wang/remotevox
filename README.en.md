@@ -4,9 +4,9 @@
 
 <img src="Assets/T1AppIcon.png" alt="T1 Controller icon" width="80">
 
-Use a Bluetooth T1 remote as a Mac microphone, air mouse, and shortcut controller. T1 Controller supports on-device Simplified Chinese dictation, voice drafts in Codex, and per-app button mappings.
+Use a T1 remote over Bluetooth or a 2.4 GHz receiver as a Mac microphone, air mouse, and shortcut controller. T1 Controller supports on-device Simplified Chinese dictation, voice drafts in Codex, and per-app button mappings.
 
-[Download v0.17.1](https://github.com/Mryang-wang/t1-controller/releases/tag/v0.17.1) · [Remote quick-start poster](docs/images/quick-start-en.svg)
+[Download v0.18.0](https://github.com/Mryang-wang/t1-controller/releases/tag/v0.18.0) · [Remote quick-start poster](docs/images/quick-start-en.svg)
 
 ![T1 Controller overview with connection status and current audio input](docs/images/overview.png)
 
@@ -14,13 +14,14 @@ The app UI is in Chinese. The instructions below include the labels you will see
 
 ## 1. Install and connect
 
-You need an **Apple silicon Mac running macOS 27 or later** and a T1 remote that connects over Bluetooth. Installing the Core Audio driver requires an administrator account.
+You need an **Apple silicon Mac running macOS 27 or later** and a T1 remote that supports Bluetooth or has a compatible 2.4 GHz receiver. Installing the Core Audio driver requires an administrator account.
 
-1. Download `T1-Controller-0.17.1-arm64.pkg` and its matching `.sha256` file from [Release v0.17.1](https://github.com/Mryang-wang/t1-controller/releases/tag/v0.17.1). The package contains the app and the compatible audio driver.
+1. Download `T1-Controller-0.18.0-arm64.pkg` and its matching `.sha256` file from [Release v0.18.0](https://github.com/Mryang-wang/t1-controller/releases/tag/v0.18.0). The package contains the app and the compatible audio driver.
 2. Open the package and restart when prompted. The app goes to `/Applications/T1 Controller.app` and the driver to `/Library/Audio/Plug-Ins/HAL/T1SiriInput.driver`.
-3. Open **System Settings → Bluetooth**, put the remote in pairing mode, and connect **T1-Remote**. Open **T1 Controller** from Applications and allow Bluetooth access.
+3. Open **T1 Controller** from Applications. For Bluetooth, pair **T1-Remote** under **System Settings → Bluetooth** and grant the app Bluetooth access. For 2.4 GHz, plug in the receiver and switch the remote to 2.4 GHz.
+4. Under **Device Overview → Connection (设备概览 → 连接方式)**, choose **Automatic (Bluetooth first)**, **Bluetooth**, or **2.4G**. A manual choice tells the app which connection to use. Battery percentage is available over Bluetooth.
 
-The prerelease installer has yet to be notarized by Apple. If macOS blocks it, check that it came from the Release above and run `shasum -a 256 -c T1-Controller-0.17.1-arm64.pkg.sha256` in your download folder. After the checksum passes, follow the system prompt if it offers **Open Anyway**. [Apple’s instructions for opening apps safely](https://support.apple.com/en-us/102445)
+The prerelease installer has yet to be notarized by Apple. If macOS blocks it, check that it came from the Release above and run `shasum -a 256 -c T1-Controller-0.18.0-arm64.pkg.sha256` in your download folder. After the checksum passes, follow the system prompt if it offers **Open Anyway**. [Apple’s instructions for opening apps safely](https://support.apple.com/en-us/102445)
 
 <details>
 <summary>Moving from an earlier test build</summary>
@@ -38,6 +39,7 @@ Open **Permissions & Startup (权限与启动)** in T1 Controller and click **Ch
 | Bluetooth | Connects to the remote and receives microphone audio |
 | Accessibility | Runs shortcuts, controls Codex dictation, and inserts text |
 | Input Monitoring | Detects presses from the physical T1 buttons |
+| Microphone | Reads audio from the 2.4 GHz receiver. macOS asks on first use. |
 
 Quit and reopen the app if macOS asks. Click **Open Sound Input (打开声音输入)** and select **T1 USB-Compatible Mic** under **Sound → Input**. Keep your usual speaker or headphones selected under **Output**. If Codex or a calling app asks to use the microphone, grant access to that app separately.
 
@@ -94,11 +96,11 @@ The direction buttons and keyboard-mode OK use their native actions by default. 
 | Mute | Toggle mute | Configurable | Configurable |
 | Up, Down, Left, Right | Native direction key, configurable | Configurable | Configurable |
 | OK | Native confirm or air-mouse left-click | Configurable in keyboard mode | Configurable in keyboard mode |
-| Power | Lock screen | Lock and sleep the display | Show the shutdown confirmation |
+| Power (Bluetooth) | Lock screen | Lock and sleep the display | Show the shutdown confirmation |
 
 ## Troubleshooting
 
-- **Waiting for T1.** Wake the remote, check that `T1-Remote` is connected in Bluetooth settings, and check the app’s Bluetooth permission.
+- **Waiting for T1.** Wake the remote, check that `T1-Remote` is connected in Bluetooth settings, and check the app’s Bluetooth permission. For 2.4 GHz, plug in the receiver, switch the remote to 2.4 GHz, and press a button.
 - **T1 input is missing.** Restart after installing, then look for `T1 USB-Compatible Mic` under **Sound → Input**.
 - **The waveform moves, but no text appears.** Prepare the Simplified Chinese model, enable general dictation, and keep focus in the same editable field. For Codex, check the default audio input and Codex’s microphone permission.
 - **OK still clicks the mouse.** Turn off air-mouse mode to test the keyboard-mode OK mapping.

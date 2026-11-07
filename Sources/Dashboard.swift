@@ -34,10 +34,16 @@ final class T1DashboardModel: ObservableObject {
     @Published var bluetooth = false
     @Published var accessibility = false
     @Published var inputMonitoring = false
+    @Published var transport = T1Transport.bluetooth
+    @Published var receiverAttached = false
+    @Published var receiverActive = false
+    @Published var battery: Int?
     @Published var page: T1DashboardPage = .overview
 }
 
 struct T1Dashboard: View {
+    private static let sidebarIcon = Bundle.main.url(forResource: "T1DashboardIcon", withExtension: "png")
+        .flatMap { NSImage(contentsOf: $0) }
 
     @ObservedObject var model: T1DashboardModel
     let audioDevice: String
@@ -47,7 +53,9 @@ struct T1Dashboard: View {
     let stop: () -> Void
     let authorize: () -> Void
     let modeChanged: () -> Void
+    var connectionModeChanged: () -> Void = {}
     @AppStorage("VoiceButtonControlsMic") private var micOnly = false
+    @AppStorage(T1ConnectionMode.storageKey) private var connectionMode = T1ConnectionMode.automatic
     @DashboardState<SMAppService.Status> private var loginStatus = .notRegistered
     @DashboardState<String?> private var setupMessage = nil
     @DashboardState<Bool> private var preparingModel = false
@@ -57,7 +65,13 @@ struct T1Dashboard: View {
     }
 
     private let accent = Color(red: 0.10, green: 0.50, blue: 0.66)
-    private var primaryStatus: String { model.recording ? "正在收音" : model.ready ? "已连接 · 待命" : "等待连接" }
+    private var primaryStatus: String {
+        if model.recording { return "正在收音" }
+        if model.transport == .receiver && model.receiverAttached {
+            return model.receiverActive ? "已收到 2.4G 按键" : "等待 2.4G 按键"
+        }
+        return model.ready ? "已连接 · 待命" : "等待连接"
+    }
     private var isDefault: Bool { model.defaultInput == audioDevice }
 
     var body: some View {
@@ -88,7 +102,8 @@ struct T1Dashboard: View {
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 10) {
-                Image(nsImage: NSApplication.shared.applicationIconImage)
+                Image(nsImage: Self.sidebarIcon ?? NSApplication.shared.applicationIconImage)
+                    .interpolation(.high)
                     .resizable().scaledToFit()
                     .frame(width: 44, height: 44)
                     .accessibilityHidden(true)
@@ -131,12 +146,16 @@ struct T1Dashboard: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("蓝牙遥控器").font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.75))
+                    Text(model.transport == .bluetooth ? "蓝牙遥控器" : "2.4G 遥控器")
+                        .font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.75))
                     Text("T1 Remote").font(.system(size: 34, weight: .semibold))
                     Label(primaryStatus, systemImage: model.recording ? "waveform" : "circle.fill")
                         .font(.callout.weight(.medium))
                         .padding(.horizontal, 10).padding(.vertical, 6)
                         .background(.white.opacity(0.16), in: Capsule())
+                    if let battery = model.battery {
+                        Label("电量 \(battery)%", systemImage: "battery.50percent").font(.callout)
+                    }
                 }
                 Spacer()
                 Image(systemName: "appletvremote.gen4")
@@ -150,6 +169,19 @@ struct T1Dashboard: View {
                                                   Color(red: 0.10, green: 0.45, blue: 0.51)],
                                        startPoint: .topLeading, endPoint: .bottomTrailing),
                         in: RoundedRectangle(cornerRadius: 18))
+            card("连接方式", icon: "antenna.radiowaves.left.and.right") {
+                Picker("连接偏好", selection: $connectionMode) {
+                    ForEach(T1ConnectionMode.allCases, id: \.self) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .onChange(of: connectionMode) { _, _ in connectionModeChanged() }
+                if model.receiverAttached && model.transport == .bluetooth {
+                    Text("2.4G 接收器已插入，当前选择蓝牙。").font(.callout).foregroundStyle(.secondary)
+                } else if model.transport == .receiver {
+                    Text("请在遥控器上切到 2.4G。此模式暂未读取电量。").font(.callout).foregroundStyle(.secondary)
+                }
+            }
             card("当前输入", icon: "mic") {
                 Text(model.defaultInput).font(.callout.weight(.medium))
                 Text(isDefault ? "App 读取 T1 时自动收音，结束后飞鼠恢复。" : "选择 T1 为默认输入后，按需收音才会启用。")

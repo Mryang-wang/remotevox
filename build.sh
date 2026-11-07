@@ -4,8 +4,8 @@ umask 077
 
 project=${0:A:h}
 output=${1:-"$project/Build/T1 Controller.app"}
-build_number=${2:-39}
-version=${3:-0.17.1}
+build_number=${2:-$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$project/Info.plist")}
+version=${3:-$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$project/Info.plist")}
 signing="$HOME/Library/Application Support/T1 Microphone/Signing"
 keychain="$signing/T1Controller.keychain-db"
 password_file="$signing/keychain-password"
@@ -74,6 +74,7 @@ for size in 16 32 128 256 512; do
     --out "$iconset/icon_${size}x${size}@2x.png" >/dev/null
 done
 /usr/bin/iconutil -c icns "$iconset" -o "$contents/Resources/T1AppIcon.icns"
+/bin/cp "$iconset/icon_256x256.png" "$contents/Resources/T1DashboardIcon.png"
 /bin/cp "$project/Sources/Bridge.swift" "$scratch/main.swift"
 /bin/cp "$project"/Sources/*.swift "$contents/Resources/"
 /usr/bin/xcrun swiftc -O -target arm64-apple-macos27.0 "$scratch/main.swift" "$project/Sources/Controller.swift" \

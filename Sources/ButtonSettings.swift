@@ -1,4 +1,21 @@
 import AppKit
+
+enum T1ConnectionMode: String, CaseIterable {
+    static let storageKey = "T1ConnectionMode"
+    case automatic, bluetooth, receiver
+
+    var title: String {
+        switch self {
+        case .automatic: "自动（蓝牙优先）"
+        case .bluetooth: "蓝牙"
+        case .receiver: "2.4G"
+        }
+    }
+}
+
+enum T1Transport: Equatable {
+    case bluetooth, receiver
+}
 import ApplicationServices
 
 enum T1Gesture: String, CaseIterable, Codable {

@@ -16,9 +16,11 @@ final class T1SystemNavigation {
     private var capturedOK = false
     private var capturedBack = false
     private let log: (String) -> Void
+    private let acceptsT1: (CGEvent) -> Bool
 
-    init(log: @escaping (String) -> Void) {
+    init(log: @escaping (String) -> Void, acceptsT1: @escaping (CGEvent) -> Bool = { T1DeviceEvent.transport($0) != nil }) {
         self.log = log
+        self.acceptsT1 = acceptsT1
     }
 
     var isActive: Bool { mode != nil }
@@ -250,6 +252,6 @@ final class T1SystemNavigation {
     }
 
     private func isT1(_ event: CGEvent) -> Bool {
-        T1DeviceEvent.isT1(event)
+        acceptsT1(event)
     }
 }

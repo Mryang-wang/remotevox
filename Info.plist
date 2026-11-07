@@ -15,14 +15,16 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.13.1</string>
+	<string>0.18.0</string>
 	<key>CFBundleVersion</key>
-	<string>14</string>
+	<string>40</string>
 	<key>LSUIElement</key>
 	<true/>
 	<key>LSMinimumSystemVersion</key>
 	<string>27.0</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>连接 T1 遥控器，将其语音发送到本机 T1 麦克风。</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>读取 T1 的 2.4G USB 接收器麦克风，用于听写和麦克风测试。</string>
 </dict>
 </plist>
