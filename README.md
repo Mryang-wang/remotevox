@@ -6,9 +6,9 @@
 
 ## 安装
 
-[在 GitHub Releases 下载 macOS 安装包](https://github.com/Mryang-wang/t1-controller/releases/tag/v0.17.0)。安装包面向 Apple Silicon Mac 和 macOS 27 或更新版本。需要管理员权限安装 Core Audio 驱动。
+[在 GitHub Releases 下载 macOS 安装包](https://github.com/Mryang-wang/t1-controller/releases/tag/v0.17.1)。安装包面向 Apple Silicon Mac 和 macOS 27 或更新版本。需要管理员权限安装 Core Audio 驱动。
 
-1. 打开 `T1-Controller-0.17.0-arm64.pkg`，完成安装并按提示重启。App 安装在 `/Applications/T1 Controller.app`，驱动安装在 `/Library/Audio/Plug-Ins/HAL/T1SiriInput.driver`。
+1. 打开 `T1-Controller-0.17.1-arm64.pkg`，完成安装并按提示重启。App 安装在 `/Applications/T1 Controller.app`，驱动安装在 `/Library/Audio/Plug-Ins/HAL/T1SiriInput.driver`。
 2. 在「系统设置 → 蓝牙」连接 `T1-Remote`。打开「应用程序」里的 T1 Controller，允许蓝牙访问。
 3. 在应用的「权限与启动」点「检查并请求控制权限」，在系统设置为 T1 Controller 开启「辅助功能」和「输入监控」。如果 macOS 要求退出重开，按提示操作。
 4. 在「系统设置 → 声音 → 输入」选择 **T1 USB-Compatible Mic**。在「输出」选择平时使用的扬声器或耳机。Codex 和通话 App 如有单独的麦克风权限请求，按需在「隐私与安全性 → 麦克风」允许。

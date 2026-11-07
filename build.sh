@@ -4,8 +4,8 @@ umask 077
 
 project=${0:A:h}
 output=${1:-"$project/Build/T1 Controller.app"}
-build_number=${2:-38}
-version=${3:-0.17.0}
+build_number=${2:-39}
+version=${3:-0.17.1}
 signing="$HOME/Library/Application Support/T1 Microphone/Signing"
 keychain="$signing/T1Controller.keychain-db"
 password_file="$signing/keychain-password"

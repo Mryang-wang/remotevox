@@ -15,23 +15,26 @@ enum T1LocalTranscriber {
         }
     }
 
-    private static func chineseModule() async throws -> SpeechTranscriber {
+    private static func chineseLocale() async throws -> Locale {
         guard SpeechTranscriber.isAvailable,
               let locale = await SpeechTranscriber.supportedLocale(equivalentTo: Locale(identifier: "zh-Hans-CN"))
         else { throw Failure.model }
-        return SpeechTranscriber(locale: locale, preset: .transcription)
+        return locale
     }
 
     static func prepareModel() async throws {
-        let module = try await chineseModule()
+        let locale = try await chineseLocale()
+        if await SpeechTranscriber.installedLocales.contains(locale) { return }
+        let module = SpeechTranscriber(locale: locale, preset: .transcription)
         if let request = try await AssetInventory.assetInstallationRequest(supporting: [module]) {
             try await request.downloadAndInstall()
         }
     }
 
     static func transcribe(_ samples: [Int16]) async throws -> String {
-        let transcriber = try await chineseModule()
-        guard await AssetInventory.status(forModules: [transcriber]) == .installed else { throw Failure.model }
+        let locale = try await chineseLocale()
+        guard await SpeechTranscriber.installedLocales.contains(locale) else { throw Failure.model }
+        let transcriber = SpeechTranscriber(locale: locale, preset: .transcription)
         guard let sourceFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16_000,
                   channels: 1, interleaved: false),
               let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber],
