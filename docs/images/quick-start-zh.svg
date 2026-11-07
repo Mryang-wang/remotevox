@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="866" viewBox="0 0 1240 866"
+  role="img" aria-labelledby="title description" xml:lang="zh-Hans">
+  <title id="title">T1 遥控器快速上手</title>
+  <desc id="description">通过蓝牙连接 Mac，用遥控器听写、导航和执行快捷键。</desc>
+  <style>
+    text {font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif}
+    .brand {font-size:17px;font-weight:700;letter-spacing:1.7px;fill:#0b6178}
+    .title {font-size:48px;font-weight:750;fill:#172b38}
+    .summary {font-size:22px;fill:#465f70}
+    .heading {font-size:24px;font-weight:700;fill:#172b38}
+    .body {font-size:19px;fill:#385263}
+    .number {font-size:17px;font-weight:700;fill:#fff;text-anchor:middle}
+    .small {font-size:16px;font-weight:600;fill:#536b79}
+  </style>
+  <rect width="1240" height="866" rx="30" fill="#edf4f7"/>
+  <rect x="52" y="40" width="174" height="33" rx="16.5" fill="#d8edf3"/>
+  <text x="67" y="62" class="brand">T1 CONTROLLER</text>
+  <rect x="51" y="198" width="350" height="595" rx="24" fill="#e1edf2"/>
+  <rect x="123" y="227" width="178" height="528" rx="29" fill="#c0d2db"/>
+  <rect x="116" y="220" width="178" height="528" rx="29" fill="#28343e" stroke="#647782" stroke-width="2"/>
+  <circle cx="206" cy="240" r="2.5" fill="#a7bdc8"/>
+  <rect x="204.5" y="246" width="3" height="8" rx="1.5" fill="#a7bdc8"/>
+  <circle cx="258" cy="250" r="15" fill="#34434f" stroke="#71838d"/>
+  <path d="M258 242v7m-4-5a6 6 0 1 0 8 0" fill="none" stroke="#e6eff4" stroke-width="1.5" stroke-linecap="round"/>
+  <circle cx="205" cy="323" r="63" fill="#35434f" stroke="#8397a3" stroke-width="1.5"/>
+  <circle cx="205" cy="323" r="32" fill="#273841" stroke="#94c4d2" stroke-width="1.5"/>
+  <text x="205" y="329" text-anchor="middle" font-size="16" font-weight="700" fill="#f2f9fc">OK</text>
+  <path d="M200 280l5-6 5 6m-10 86 5 6 5-6m-48-48-6 5 6 5m86-10 6 5-6 5"
+     fill="none" stroke="#dfecf1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="166" cy="419" r="27" fill="#35434f" stroke="#687d89" stroke-width="1.3"/>
+  <path d="M175 419h-17m5-5-5 5 5 5" fill="none" stroke="#ebf2f6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="243" cy="419" r="27" fill="#0b6780" stroke="#80c1d2" stroke-width="1.5"/>
+  <circle cx="239" cy="416" r="4.5" fill="#fff"/><circle cx="248" cy="414" r="2.1" fill="#fff"/>
+  <circle cx="247" cy="423" r="3.5" fill="#fff"/><circle cx="241" cy="427" r="2" fill="#fff"/>
+  <rect x="139" y="460" width="54" height="120" rx="26" fill="#35434f" stroke="#7c929e" stroke-width="1.3"/>
+  <path d="M143 521h46" stroke="#778e99"/>
+  <path d="M158 485h5l5-4v12l-5-4h-5zm13 0 6 5m0-5-6 5" fill="none" stroke="#e5eef3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="161" y="541" width="10" height="14" rx="5" fill="none" stroke="#e5eef3" stroke-width="1.8"/>
+  <path d="M166 541v5m-10-1-2 5m22-5 2 5" stroke="#e5eef3" stroke-width="1.8" stroke-linecap="round"/>
+  <circle cx="243" cy="487" r="27" fill="#35434f" stroke="#687d89" stroke-width="1.3"/>
+  <path d="M234 487l9-8 9 8h-3v8h-4v-5h-4v5h-4v-8z" fill="#e8f1f6"/>
+  <circle cx="243" cy="553" r="27" fill="#35434f" stroke="#687d89" stroke-width="1.3"/>
+  <path d="M235 548h16m-16 5h16m-16 5h16" stroke="#e8f1f6" stroke-width="2" stroke-linecap="round"/>
+  <rect x="438" y="809" width="749" height="31" rx="15" fill="#dcebf0"/>
+
+  <text x="51" y="128" class="title" >T1 遥控器快速上手</text>
+  <text x="53" y="165" class="summary" >通过蓝牙连接 Mac，用遥控器听写、导航和执行快捷键。</text>
+  <text x="226" y="775" class="small" text-anchor="middle">T1 正面 · 按键示意</text>
+  <text x="459" y="830" class="small" >默认映射。可在「按键映射」中为不同 App 设置专用动作。</text>
+  <path d="M272 419H348" stroke="#4793a7" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="348" cy="419" r="16" fill="#0b6780"/>
+  <text x="348" y="425" class="number" >1</text>
+  <path d="M136 550H77" stroke="#4793a7" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="77" cy="550" r="16" fill="#0b6780"/>
+  <text x="77" y="556" class="number" >2</text>
+  <path d="M271 323H348" stroke="#4793a7" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="348" cy="323" r="16" fill="#0b6780"/>
+  <text x="348" y="329" class="number" >3</text>
+  <path d="M272 553H348" stroke="#4793a7" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="348" cy="553" r="16" fill="#0b6780"/>
+  <text x="348" y="559" class="number" >4</text>
+  <path d="M272 487H348" stroke="#4793a7" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="348" cy="487" r="16" fill="#0b6780"/>
+  <text x="348" y="493" class="number" >5</text>
+  <rect x="438" y="198" width="749" height="109" rx="18" fill="#fff" stroke="#d2e2ea"/>
+  <circle cx="470" cy="228" r="16" fill="#0b6780"/>
+  <text x="470" y="234" class="number" >1</text>
+  <text x="497" y="234" class="heading" >语音键</text>
+  <text x="497" y="262" class="body" >轻按一次开始听写，再轻按一次写入文字。</text>
+  <text x="497" y="287" class="body" >Codex 录音中快速双击，可作废本次听写。</text>
+  <rect x="438" y="319" width="749" height="109" rx="18" fill="#fff" stroke="#d2e2ea"/>
+  <circle cx="470" cy="349" r="16" fill="#0b6780"/>
+  <text x="470" y="355" class="number" >2</text>
+  <text x="497" y="355" class="heading" >飞鼠开关</text>
+  <text x="497" y="383" class="body" >按左侧长条键下半部切换飞鼠。</text>
+  <text x="497" y="408" class="body" >飞鼠开启时，按住 OK 并移动遥控器即可拖选。</text>
+  <rect x="438" y="440" width="749" height="109" rx="18" fill="#fff" stroke="#d2e2ea"/>
+  <circle cx="470" cy="470" r="16" fill="#0b6780"/>
+  <text x="470" y="476" class="number" >3</text>
+  <text x="497" y="476" class="heading" >方向键与 OK</text>
+  <text x="497" y="504" class="body" >方向键和键盘模式的 OK 支持自定义。</text>
+  <text x="497" y="529" class="body" >关闭飞鼠后，再测试 OK 的键盘映射。</text>
+  <rect x="438" y="561" width="749" height="109" rx="18" fill="#fff" stroke="#d2e2ea"/>
+  <circle cx="470" cy="591" r="16" fill="#0b6780"/>
+  <text x="470" y="597" class="number" >4</text>
+  <text x="497" y="597" class="heading" >三横线</text>
+  <text x="497" y="625" class="body" >单击打开系统 App 菜单。</text>
+  <text x="497" y="650" class="body" >双击复制，长按粘贴。</text>
+  <rect x="438" y="682" width="749" height="109" rx="18" fill="#fff" stroke="#d2e2ea"/>
+  <circle cx="470" cy="712" r="16" fill="#0b6780"/>
+  <text x="470" y="718" class="number" >5</text>
+  <text x="497" y="718" class="heading" >主页键</text>
+  <text x="497" y="746" class="body" >单击显示桌面，双击打开 App 切换器。</text>
+  <text x="497" y="771" class="body" >长按新建 Codex 对话。</text>
+  </svg>
