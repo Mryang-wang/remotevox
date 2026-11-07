@@ -1,28 +1,30 @@
-# T1 Controller
+# RemoteVox
 
 **简体中文** · [English](README.en.md)
 
-<img src="Assets/T1AppIcon.png" alt="T1 Controller 图标" width="80">
+<img src="Assets/T1AppIcon.png" alt="RemoteVox 图标" width="80">
 
 通过蓝牙或 2.4G 接收器，把 T1 遥控器用作 Mac 的麦克风、飞鼠和快捷键控制器。支持简体中文本机听写、Codex 草稿听写和逐 App 按键映射。
 
-[下载安装包 v0.18.0](https://github.com/Mryang-wang/t1-controller/releases/tag/v0.18.0) · [遥控器快速上手图](docs/images/quick-start-zh.svg)
+[下载安装包 v0.18.1](https://github.com/Mryang-wang/remotevox/releases/tag/v0.18.1) · [遥控器快速上手图](docs/images/quick-start-zh.svg)
 
-![T1 Controller 的设备概览，显示连接状态和当前输入设备](docs/images/overview.png)
+![RemoteVox 的设备概览，显示连接状态和当前输入设备](docs/images/overview.png)
 
 ## 1. 安装并连接
 
 需要 **Apple Silicon Mac、macOS 27 或更新版本**和支持蓝牙或兼容 2.4G 接收器的 T1 遥控器。安装 Core Audio 驱动需要管理员权限。
 
-1. 从 [v0.18.0 Release](https://github.com/Mryang-wang/t1-controller/releases/tag/v0.18.0) 下载 `T1-Controller-0.18.0-arm64.pkg` 和同名 `.sha256` 文件。安装包包含 App 和兼容音频驱动。
-2. 打开安装包并按提示重启。App 安装到 `/Applications/T1 Controller.app`，驱动安装到 `/Library/Audio/Plug-Ins/HAL/T1SiriInput.driver`。
-3. 打开「应用程序」里的 **T1 Controller**。使用蓝牙时，在「系统设置 → 蓝牙」配对 **T1-Remote**，并为 T1 Controller 允许蓝牙访问。使用 2.4G 时，插入接收器，把遥控器切到 2.4G。
+1. 从 [v0.18.1 Release](https://github.com/Mryang-wang/remotevox/releases/tag/v0.18.1) 下载 `RemoteVox-0.18.1-arm64.pkg` 和同名 `.sha256` 文件。安装包包含 App 和兼容音频驱动。
+2. 打开安装包并按提示重启。App 安装到 `/Applications/RemoteVox.app`，驱动安装到 `/Library/Audio/Plug-Ins/HAL/T1SiriInput.driver`。
+3. 打开「应用程序」里的 **RemoteVox**。使用蓝牙时，在「系统设置 → 蓝牙」配对 **T1-Remote**，并为 RemoteVox 允许蓝牙访问。使用 2.4G 时，插入接收器，把遥控器切到 2.4G。
 4. 在「**设备概览 → 连接方式**」选择「**自动（蓝牙优先）**」「**蓝牙**」或「**2.4G**」。手动选项决定 App 使用的链路。蓝牙模式可显示电量，2.4G 暂无电量读数。
 
-此测试安装包尚未经过 Apple 公证。如果 macOS 拦截，先确认来自上述 Release，并在下载目录运行 `shasum -a 256 -c T1-Controller-0.18.0-arm64.pkg.sha256`。校验通过后，如系统提供「仍要打开」，可按提示确认。 [Apple 的安全打开说明](https://support.apple.com/zh-cn/102445)
+此测试安装包尚未经过 Apple 公证。如果 macOS 拦截，先确认来自上述 Release，并在下载目录运行 `shasum -a 256 -c RemoteVox-0.18.1-arm64.pkg.sha256`。校验通过后，如系统提供「仍要打开」，可按提示确认。 [Apple 的安全打开说明](https://support.apple.com/zh-cn/102445)
 
 <details>
 <summary>从早期测试版迁移</summary>
+
+从 T1 Controller 升级会保留按键映射和设置。安装前请退出旧版。如果旧版启用了登录启动，安装后可在 RemoteVox 的「权限与启动」里核对登录项。
 
 早期测试版位于 `~/Applications`。安装到系统「应用程序」前，先退出旧版、移走旧 App 并停用它的登录项。如旧任务使用 `~/Library/LaunchAgents/local.codex.t1microphone.login.plist`，移走该文件后重新登录。打开新版后核对授权状态。
 
@@ -30,7 +32,7 @@
 
 ## 2. 授权并选择声音输入
 
-打开 T1 Controller 的「**权限与启动**」，点「**检查并请求控制权限**」。在「系统设置 → 隐私与安全性」中为 T1 Controller 确认以下权限。
+打开 RemoteVox 的「**权限与启动**」，点「**检查并请求控制权限**」。在「系统设置 → 隐私与安全性」中为 RemoteVox 确认以下权限。
 
 | 权限 | 用途 |
 | --- | --- |
@@ -41,7 +43,7 @@
 
 系统要求退出并重新打开 App 时，按提示操作。然后点「**打开声音输入**」，在「声音 → 输入」选择 **T1 USB-Compatible Mic**。在「输出」保留平时使用的扬声器或耳机。Codex 或通话 App 首次读取麦克风时，按系统提示为对应 App 授权。
 
-如果希望登录后自动待命，在「权限与启动」点「**开启登录启动**」，并按 macOS 提示确认。双击 T1 Controller 可再次打开设置。
+如果希望登录后自动待命，在「权限与启动」点「**开启登录启动**」，并按 macOS 提示确认。双击 RemoteVox 可再次打开设置。
 
 ![权限与启动页面，显示蓝牙、辅助功能、输入监控、声音输入和模型准备入口](docs/images/permissions.png)
 
@@ -54,7 +56,7 @@
 3. 打开 TextEdit（文本编辑）等 App，点进可编辑文本框。**轻按一次语音键**，看到底部波纹后说话。安静时波纹显示为静止点线。
 4. **再轻按一次**结束。识别结果写入原文本框。
 
-普通 App 的简体中文听写在本机完成。T1 Controller 在内存中处理语音和文字。
+普通 App 的简体中文听写在本机完成。RemoteVox 在内存中处理语音和文字。
 
 ![本机听写浮窗，波纹下方提示再按一次输入](docs/images/dictation-waveform.png)
 

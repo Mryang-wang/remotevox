@@ -520,7 +520,7 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
         } catch {
             setStatus(error.localizedDescription)
             let alert = NSAlert()
-            alert.messageText = "T1 Controller 未启动"
+            alert.messageText = "RemoteVox 未启动"
             alert.informativeText = error.localizedDescription
             alert.runModal()
             NSApp.terminate(nil)
@@ -932,7 +932,7 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
         if panel == nil {
             let window = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 855, height: 620),
                 styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
-            window.title = "T1 Controller"
+            window.title = "RemoteVox"
             window.contentMinSize = NSSize(width: 760, height: 530)
             window.isReleasedWhenClosed = false
             window.hidesOnDeactivate = false

@@ -108,7 +108,7 @@ struct T1Dashboard: View {
                     .frame(width: 44, height: 44)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("T1 Controller").font(.headline)
+                    Text("RemoteVox").font(.headline)
                     Text("遥控器与语音").font(.caption).foregroundStyle(.secondary)
                 }
             }
@@ -268,7 +268,7 @@ struct T1Dashboard: View {
                 }
             }
             card("后台运行", icon: "moon.zzz") {
-                Text("开启后登录时在后台待命。双击 T1 Controller 打开此窗口。")
+                Text("开启后登录时在后台待命。双击 RemoteVox 打开此窗口。")
                     .font(.callout).foregroundStyle(.secondary)
                 HStack {
                     if loginStatus != .notFound {
@@ -278,7 +278,7 @@ struct T1Dashboard: View {
                         }
                     }
                     Button("打开登录项设置") { SMAppService.openSystemSettingsLoginItems() }
-                    Button("退出 T1 Controller") { NSApplication.shared.terminate(nil) }
+                    Button("退出 RemoteVox") { NSApplication.shared.terminate(nil) }
                 }
             }
             if let setupMessage { Text(setupMessage).font(.callout).foregroundStyle(.secondary) }

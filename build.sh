@@ -3,7 +3,7 @@ set -eu
 umask 077
 
 project=${0:A:h}
-output=${1:-"$project/Build/T1 Controller.app"}
+output=${1:-"$project/Build/RemoteVox.app"}
 build_number=${2:-$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$project/Info.plist")}
 version=${3:-$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$project/Info.plist")}
 signing="$HOME/Library/Application Support/T1 Microphone/Signing"
@@ -25,7 +25,7 @@ mkdir -p "$signing" "${output:h}"
 if [[ ! -f "$keychain" ]]; then
   password=$(/usr/bin/openssl rand -hex 32)
   /usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
-    -subj '/CN=T1 Controller Local Signing/' \
+    -subj '/CN=RemoteVox Local Signing/' \
     -keyout "$scratch/signing.key" -out "$scratch/certificate.pem" \
     -addext 'keyUsage=critical,digitalSignature' \
     -addext 'extendedKeyUsage=codeSigning' \
@@ -53,7 +53,7 @@ unset password
 hash=$(/usr/bin/openssl x509 -in "$certificate" -noout -fingerprint -sha1 | tr -d : | cut -d= -f2)
 printf 'designated => identifier "%s" and certificate leaf = H"%s"\n' "$identifier" "$hash" > "$scratch/designated.req"
 
-app="$scratch/T1 Controller.app"
+app="$scratch/RemoteVox.app"
 contents="$app/Contents"
 mkdir -p "$contents/MacOS" "$contents/Resources"
 /bin/mkdir -p "$contents/Library/LaunchAgents"

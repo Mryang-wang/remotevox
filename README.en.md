@@ -1,14 +1,14 @@
-# T1 Controller
+# RemoteVox
 
 [简体中文](README.md) · **English**
 
-<img src="Assets/T1AppIcon.png" alt="T1 Controller icon" width="80">
+<img src="Assets/T1AppIcon.png" alt="RemoteVox icon" width="80">
 
-Use a T1 remote over Bluetooth or a 2.4 GHz receiver as a Mac microphone, air mouse, and shortcut controller. T1 Controller supports on-device Simplified Chinese dictation, voice drafts in Codex, and per-app button mappings.
+Use a T1 remote over Bluetooth or a 2.4 GHz receiver as a Mac microphone, air mouse, and shortcut controller. RemoteVox supports on-device Simplified Chinese dictation, voice drafts in Codex, and per-app button mappings.
 
-[Download v0.18.0](https://github.com/Mryang-wang/t1-controller/releases/tag/v0.18.0) · [Remote quick-start poster](docs/images/quick-start-en.svg)
+[Download v0.18.1](https://github.com/Mryang-wang/remotevox/releases/tag/v0.18.1) · [Remote quick-start poster](docs/images/quick-start-en.svg)
 
-![T1 Controller overview with connection status and current audio input](docs/images/overview.png)
+![RemoteVox overview with connection status and current audio input](docs/images/overview.png)
 
 The app UI is in Chinese. The instructions below include the labels you will see in the app.
 
@@ -16,15 +16,17 @@ The app UI is in Chinese. The instructions below include the labels you will see
 
 You need an **Apple silicon Mac running macOS 27 or later** and a T1 remote that supports Bluetooth or has a compatible 2.4 GHz receiver. Installing the Core Audio driver requires an administrator account.
 
-1. Download `T1-Controller-0.18.0-arm64.pkg` and its matching `.sha256` file from [Release v0.18.0](https://github.com/Mryang-wang/t1-controller/releases/tag/v0.18.0). The package contains the app and the compatible audio driver.
-2. Open the package and restart when prompted. The app goes to `/Applications/T1 Controller.app` and the driver to `/Library/Audio/Plug-Ins/HAL/T1SiriInput.driver`.
-3. Open **T1 Controller** from Applications. For Bluetooth, pair **T1-Remote** under **System Settings → Bluetooth** and grant the app Bluetooth access. For 2.4 GHz, plug in the receiver and switch the remote to 2.4 GHz.
+1. Download `RemoteVox-0.18.1-arm64.pkg` and its matching `.sha256` file from [Release v0.18.1](https://github.com/Mryang-wang/remotevox/releases/tag/v0.18.1). The package contains the app and the compatible audio driver.
+2. Open the package and restart when prompted. The app goes to `/Applications/RemoteVox.app` and the driver to `/Library/Audio/Plug-Ins/HAL/T1SiriInput.driver`.
+3. Open **RemoteVox** from Applications. For Bluetooth, pair **T1-Remote** under **System Settings → Bluetooth** and grant the app Bluetooth access. For 2.4 GHz, plug in the receiver and switch the remote to 2.4 GHz.
 4. Under **Device Overview → Connection (设备概览 → 连接方式)**, choose **Automatic (Bluetooth first)**, **Bluetooth**, or **2.4G**. A manual choice tells the app which connection to use. Battery percentage is available over Bluetooth.
 
-The prerelease installer has yet to be notarized by Apple. If macOS blocks it, check that it came from the Release above and run `shasum -a 256 -c T1-Controller-0.18.0-arm64.pkg.sha256` in your download folder. After the checksum passes, follow the system prompt if it offers **Open Anyway**. [Apple’s instructions for opening apps safely](https://support.apple.com/en-us/102445)
+The prerelease installer has yet to be notarized by Apple. If macOS blocks it, check that it came from the Release above and run `shasum -a 256 -c RemoteVox-0.18.1-arm64.pkg.sha256` in your download folder. After the checksum passes, follow the system prompt if it offers **Open Anyway**. [Apple’s instructions for opening apps safely](https://support.apple.com/en-us/102445)
 
 <details>
 <summary>Moving from an earlier test build</summary>
+
+Upgrading from T1 Controller keeps your button mappings and settings. Quit the old app before installing. If it was set to launch at login, check **Permissions & Startup (权限与启动)** in RemoteVox after upgrading.
 
 Early test builds lived in `~/Applications`. Before installing the system-wide version, quit the old app, move it out of that folder, and disable its login item. If the old task uses `~/Library/LaunchAgents/local.codex.t1microphone.login.plist`, move that file and log back in. Check permissions after opening the new app.
 
@@ -32,9 +34,9 @@ Early test builds lived in `~/Applications`. Before installing the system-wide v
 
 ## 2. Grant permissions and select the audio input
 
-Open **Permissions & Startup (权限与启动)** in T1 Controller and click **Check and request permissions (检查并请求控制权限)**. In **System Settings → Privacy & Security**, check the following permissions for T1 Controller.
+Open **Permissions & Startup (权限与启动)** in RemoteVox and click **Check and request permissions (检查并请求控制权限)**. In **System Settings → Privacy & Security**, check the following permissions for RemoteVox.
 
-| Permission | What T1 Controller uses it for |
+| Permission | What RemoteVox uses it for |
 | --- | --- |
 | Bluetooth | Connects to the remote and receives microphone audio |
 | Accessibility | Runs shortcuts, controls Codex dictation, and inserts text |
@@ -43,7 +45,7 @@ Open **Permissions & Startup (权限与启动)** in T1 Controller and click **Ch
 
 Quit and reopen the app if macOS asks. Click **Open Sound Input (打开声音输入)** and select **T1 USB-Compatible Mic** under **Sound → Input**. Keep your usual speaker or headphones selected under **Output**. If Codex or a calling app asks to use the microphone, grant access to that app separately.
 
-For background startup, click **Enable at Login (开启登录启动)** under **Permissions & Startup** and follow the macOS prompt. Double-click T1 Controller whenever you need to reopen settings.
+For background startup, click **Enable at Login (开启登录启动)** under **Permissions & Startup** and follow the macOS prompt. Double-click RemoteVox whenever you need to reopen settings.
 
 ![Permissions and Startup page with Bluetooth, Accessibility, Input Monitoring, sound input, and Chinese model setup](docs/images/permissions.png)
 
@@ -56,7 +58,7 @@ For background startup, click **Enable at Login (开启登录启动)** under **P
 3. Click an editable field in an app such as TextEdit. **Press the voice button once**, then speak when the waveform appears at the bottom of the screen. It becomes a steady line of dots in silence.
 4. **Press the voice button again** to finish and insert the recognized text into the original field.
 
-Simplified Chinese dictation in ordinary apps runs on your Mac. T1 Controller processes the audio and transcript in memory.
+Simplified Chinese dictation in ordinary apps runs on your Mac. RemoteVox processes the audio and transcript in memory.
 
 ![On-device dictation overlay with a waveform and a prompt to press again to insert text](docs/images/dictation-waveform.png)
 

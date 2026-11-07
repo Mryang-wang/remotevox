@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+
+applications="${3%/}/Applications"
+previous="$applications/T1 Controller.app"
+installed="$applications/RemoteVox.app"
+identifier=local.codex.t1microphone
+
+# Move only the old system-wide app for this product after its replacement is installed.
+[ ! -L "$applications" ] && [ ! -L "$previous" ] && [ ! -L "$installed" ] || exit 0
+[ -d "$previous" ] && [ -d "$installed" ] || exit 0
+for app in "$previous" "$installed"; do
+    [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist" 2>/dev/null)" = "$identifier" ] || exit 0
+done
+backup=$(/usr/bin/mktemp -d "$applications/.RemoteVox-previous.XXXXXX")
+/bin/mv "$previous" "$backup/"
