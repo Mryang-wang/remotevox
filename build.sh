@@ -60,6 +60,7 @@ mkdir -p "$contents/MacOS" "$contents/Resources"
 /usr/bin/install -m 755 "$project/Packaging/t1-login.sh" "$contents/Resources/t1-login.sh"
 /bin/cp "$project/Packaging/local.codex.t1microphone.background.plist" "$contents/Library/LaunchAgents/"
 /bin/cp "$project/Info.plist" "$contents/Info.plist"
+/bin/cp "$project/LICENSE" "$contents/Resources/LICENSE"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $build_number" \
   -c "Set :CFBundleShortVersionString $version" "$contents/Info.plist"
 icon_source="$project/Assets/T1AppIcon.png"

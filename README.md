@@ -64,3 +64,7 @@
 ## 音频驱动
 
 T1SiriInput 基于 Existential Audio 的 BlackHole 源码，按 GNU GPL v3 发布。当前包使用 T1SiriInput 的名称和标识。对应源文件、上游版本和构建参数见 [Driver](Driver/README.md)。[BlackHole 上游项目](https://github.com/ExistentialAudio/BlackHole)
+
+## 许可证
+
+T1 Controller 应用源码、项目脚本和文档采用 [MIT 许可证](LICENSE)。`Driver/` 下的 T1SiriInput 音频驱动适用 [GNU GPL v3](Driver/LICENSE)。
