@@ -4,9 +4,9 @@
 
 <img src="Assets/T1AppIcon.png" alt="RemoteVox icon" width="80">
 
-Use a T1 remote over Bluetooth or a 2.4 GHz receiver as a Mac microphone, air mouse, and shortcut controller. RemoteVox supports on-device Simplified Chinese dictation, voice drafts in Codex, and per-app button mappings.
+Use a T1 remote over Bluetooth or a 2.4 GHz receiver as a Mac microphone, air mouse, and shortcut controller. RemoteVox supports on-device dictation in Simplified Chinese, US English, or mixed Chinese and English, as well as voice drafts in Codex and per-app button mappings.
 
-[Download v0.18.2](https://github.com/Mryang-wang/remotevox/releases/tag/v0.18.2) · [Remote quick-start poster](docs/images/quick-start-en.svg)
+[Download v0.18.3](https://github.com/Mryang-wang/remotevox/releases/tag/v0.18.3) · [Remote quick-start poster](docs/images/quick-start-en.svg)
 
 ![RemoteVox overview with connection status and current audio input](docs/images/overview.png)
 
@@ -16,12 +16,12 @@ The app UI is in Chinese. The instructions below include the labels you will see
 
 You need an **Apple silicon Mac running macOS 27 or later** and a T1 remote that supports Bluetooth or has a compatible 2.4 GHz receiver. Installing the Core Audio driver requires an administrator account.
 
-1. Download `RemoteVox-0.18.2-arm64.pkg` and its matching `.sha256` file from [Release v0.18.2](https://github.com/Mryang-wang/remotevox/releases/tag/v0.18.2). The package contains the app and the compatible audio driver.
+1. Download `RemoteVox-0.18.3-arm64.pkg` and its matching `.sha256` file from [Release v0.18.3](https://github.com/Mryang-wang/remotevox/releases/tag/v0.18.3). The package contains the app and the compatible audio driver.
 2. Open the package and restart when prompted. The app goes to `/Applications/RemoteVox.app` and the driver to `/Library/Audio/Plug-Ins/HAL/T1SiriInput.driver`.
 3. Open **RemoteVox** from Applications. For Bluetooth, pair **T1-Remote** under **System Settings → Bluetooth** and grant the app Bluetooth access. For 2.4 GHz, plug in the receiver and switch the remote to 2.4 GHz.
 4. Under **Device Overview → Connection (设备概览 → 连接方式)**, choose **Automatic (Bluetooth first)**, **Bluetooth**, or **2.4G**. A manual choice tells the app which connection to use. Battery percentage is available over Bluetooth.
 
-The prerelease installer has yet to be notarized by Apple. If macOS blocks it, check that it came from the Release above and run `shasum -a 256 -c RemoteVox-0.18.2-arm64.pkg.sha256` in your download folder. After the checksum passes, follow the system prompt if it offers **Open Anyway**. [Apple’s instructions for opening apps safely](https://support.apple.com/en-us/102445)
+The prerelease installer has yet to be notarized by Apple. If macOS blocks it, check that it came from the Release above and run `shasum -a 256 -c RemoteVox-0.18.3-arm64.pkg.sha256` in your download folder. After the checksum passes, follow the system prompt if it offers **Open Anyway**. [Apple’s instructions for opening apps safely](https://support.apple.com/en-us/102445)
 
 <details>
 <summary>Moving from an earlier test build</summary>
@@ -53,12 +53,12 @@ For background startup, click **Enable at Login (开启登录启动)** under **P
 
 ### On-device dictation in ordinary apps
 
-1. Under **Permissions & Startup**, click **Prepare Simplified Chinese Model (准备简体中文模型)**. macOS downloads the model on first setup.
+1. Under **Permissions & Startup → On-Device Dictation Language (权限与启动 → 本机听写语言)**, select **Simplified Chinese (default)**, **US English**, or **Mixed Chinese and English (中英混合)**. Click **Download Selected Language Model (下载所选语言模型)**.
 2. Open **Button Mapping → General (按键映射 → 通用设置)** and enable **Use the voice button for on-device dictation (语音键使用本机听写（测试）)**.
 3. Click an editable field in an app such as TextEdit. **Press the voice button once**, then speak when the waveform appears at the bottom of the screen. It becomes a steady line of dots in silence.
 4. **Press the voice button again** to finish and insert the recognized text into the original field.
 
-Simplified Chinese dictation in ordinary apps runs on your Mac. RemoteVox processes the audio and transcript in memory.
+After the model downloads, dictation in ordinary apps runs on your Mac. The mixed-language model is about 94 MiB and transcribes Chinese and English in the same sentence. RemoteVox processes the audio and transcript in memory.
 
 ![On-device dictation overlay with a waveform and a prompt to press again to insert text](docs/images/dictation-waveform.png)
 
@@ -102,15 +102,21 @@ To control Codex with OK, select the ChatGPT (Codex) app profile in **Button Map
 | OK | Native confirm or air-mouse left-click | Configurable in keyboard mode | Configurable in keyboard mode |
 | Power (Bluetooth) | Lock screen | Lock and sleep the display | Show the shutdown confirmation |
 
+The shutdown dialog starts on **Cancel**. Press Left or Right to select the button at that position, then press OK.
+
 ## Troubleshooting
 
 - **Waiting for T1.** Wake the remote, check that `T1-Remote` is connected in Bluetooth settings, and check the app’s Bluetooth permission. For 2.4 GHz, plug in the receiver, switch the remote to 2.4 GHz, and press a button.
 - **T1 input is missing.** Restart after installing, then look for `T1 USB-Compatible Mic` under **Sound → Input**.
-- **The waveform moves, but no text appears.** Prepare the Simplified Chinese model, enable general dictation, and keep focus in the same editable field. For Codex, check the default audio input and Codex’s microphone permission.
+- **The waveform moves, but no text appears.** Check that the selected language model is ready, enable on-device dictation, and keep focus in the same editable field. For Codex, check the default audio input and Codex’s microphone permission.
 - **OK still clicks the mouse.** Turn off air-mouse mode to test the keyboard-mode OK mapping.
+
+Use **Diagnostic Log (诊断日志)** in the sidebar to view or copy connection changes, button presses, and action results. It keeps today and yesterday, with a limit of 64 KiB per day.
 
 ## Build and license
 
 Install Xcode Command Line Tools with the macOS 27 SDK. Run `./test.sh`, `./build.sh`, and `./package.sh` from the repository root. The app, installer and SHA-256 checksum are written to `Build/`. The local signing identity is stored under the current user’s Application Support directory.
+
+Mixed dictation uses [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx), [ONNX Runtime](https://github.com/microsoft/onnxruntime), and a [Chinese–English Zipformer model](https://huggingface.co/csukuangfj/k2fsa-zipformer-chinese-english-mixed) downloaded on demand. Runtime licenses are included in the app.
 
 The app source, scripts and documentation are under [MIT](LICENSE). The T1SiriInput audio driver is based on Existential Audio’s BlackHole source and is under [GNU GPL v3](Driver/LICENSE). [Driver source and build details](Driver/README.md) · [BlackHole upstream](https://github.com/ExistentialAudio/BlackHole)

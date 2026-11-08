@@ -3,37 +3,70 @@ import ApplicationServices
 import AVFoundation
 import Speech
 
+enum T1DictationLanguage: String, CaseIterable {
+    static let storageKey = "T1LocalDictationLanguage"
+
+    case simplifiedChinese = "zh-Hans-CN"
+    case englishUS = "en-US"
+    case mixedChineseEnglish = "zh-en"
+
+    var title: String {
+        switch self {
+        case .simplifiedChinese: "简体中文"
+        case .englishUS: "English（美国）"
+        case .mixedChineseEnglish: "中英混合"
+        }
+    }
+
+    static var current: Self {
+        UserDefaults.standard.string(forKey: storageKey).flatMap(Self.init(rawValue:)) ?? .simplifiedChinese
+    }
+}
+
 @available(macOS 26.0, *)
 enum T1LocalTranscriber {
     enum Failure: LocalizedError {
-        case model, format
+        case unsupported(T1DictationLanguage), model(T1DictationLanguage), format
         var errorDescription: String? {
             switch self {
-            case .model: "简体中文识别模型不可用"
+            case .unsupported(let language): "这台 Mac 无法使用\(language.title)本机听写"
+            case .model(let language): "请先在「权限与启动」下载\(language.title)模型"
             case .format: "语音格式转换失败"
             }
         }
     }
 
-    private static func chineseLocale() async throws -> Locale {
+    private static func locale(for language: T1DictationLanguage) async throws -> Locale {
         guard SpeechTranscriber.isAvailable,
-              let locale = await SpeechTranscriber.supportedLocale(equivalentTo: Locale(identifier: "zh-Hans-CN"))
-        else { throw Failure.model }
+              let locale = await SpeechTranscriber.supportedLocale(equivalentTo: Locale(identifier: language.rawValue))
+        else { throw Failure.unsupported(language) }
         return locale
     }
 
-    static func prepareModel() async throws {
-        let locale = try await chineseLocale()
+    static func isModelInstalled(for language: T1DictationLanguage) async throws -> Bool {
+        if language == .mixedChineseEnglish { return await T1MixedDictation.shared.isInstalled() }
+        let locale = try await locale(for: language)
+        return await SpeechTranscriber.installedLocales.contains(locale)
+    }
+
+    static func prepareModel(for language: T1DictationLanguage) async throws {
+        if language == .mixedChineseEnglish {
+            try await T1MixedDictation.shared.prepare()
+            return
+        }
+        let locale = try await locale(for: language)
         if await SpeechTranscriber.installedLocales.contains(locale) { return }
         let module = SpeechTranscriber(locale: locale, preset: .transcription)
         if let request = try await AssetInventory.assetInstallationRequest(supporting: [module]) {
             try await request.downloadAndInstall()
         }
+        guard await SpeechTranscriber.installedLocales.contains(locale) else { throw Failure.model(language) }
     }
 
-    static func transcribe(_ samples: [Int16]) async throws -> String {
-        let locale = try await chineseLocale()
-        guard await SpeechTranscriber.installedLocales.contains(locale) else { throw Failure.model }
+    static func transcribe(_ samples: [Int16], language: T1DictationLanguage) async throws -> String {
+        if language == .mixedChineseEnglish { return try await T1MixedDictation.shared.transcribe(samples) }
+        let locale = try await locale(for: language)
+        guard await SpeechTranscriber.installedLocales.contains(locale) else { throw Failure.model(language) }
         let transcriber = SpeechTranscriber(locale: locale, preset: .transcription)
         guard let sourceFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16_000,
                   channels: 1, interleaved: false),
@@ -158,6 +191,7 @@ final class T1LocalDictation {
     private var task: Task<Void, Never>?
     private var samples: [Int16] = []
     private var capturing = false
+    private var captureLanguage = T1DictationLanguage.simplifiedChinese
     private var panel: NSPanel?
     private var noticeLabel: NSTextField?
     private var waveform: T1DictationWaveform?
@@ -196,10 +230,11 @@ final class T1LocalDictation {
             return
         }
         guard openMic() else { cancel("T1 未连接或麦克风正在使用"); return }
+        captureLanguage = T1DictationLanguage.current
         capturing = true
         show("准备收音…", recording: true)
         waveform?.reset()
-        log("本机听写开始收音")
+        log("本机听写开始收音（\(captureLanguage.title)）")
         let limit = DispatchWorkItem { [weak self] in self?.cancel("听写已超时，请重试") }
         timeout = limit
         DispatchQueue.main.asyncAfter(deadline: .now() + 45, execute: limit)
@@ -245,11 +280,12 @@ final class T1LocalDictation {
         guard let target, target.isCurrent() else { cancel("输入位置已切换"); return }
         guard pcm.count >= 4_000 else { cancel("收音太短，请重试"); return }
         guard #available(macOS 26.0, *) else { cancel("本机识别需要 macOS 26"); return }
+        let language = captureLanguage
         show("正在识别…")
         log("本机听写收到 \(pcm.count) 帧，开始识别")
         task = Task { @MainActor [weak self] in
             do {
-                let text = try await T1LocalTranscriber.transcribe(pcm)
+                let text = try await T1LocalTranscriber.transcribe(pcm, language: language)
                 guard let self, !Task.isCancelled else { return }
                 self.task = nil
                 self.target = nil
@@ -265,7 +301,9 @@ final class T1LocalDictation {
                 self.task = nil
                 self.target = nil
                 self.log("本机听写识别失败：\(error.localizedDescription)")
-                self.notify("本机识别失败，请重试")
+                let message = (error as? T1LocalTranscriber.Failure)?.errorDescription ??
+                    (error as? T1MixedDictation.Failure)?.errorDescription
+                self.notify(message ?? "本机识别失败，请重试")
             }
         }
     }

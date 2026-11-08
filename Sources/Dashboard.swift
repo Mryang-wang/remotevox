@@ -5,7 +5,7 @@ import SwiftUI
 private typealias DashboardState<Value> = SwiftUI.State<Value>
 
 enum T1DashboardPage: String, CaseIterable, Identifiable {
-    case overview, mapping, microphone, setup
+    case overview, mapping, microphone, setup, diagnostics
     var id: Self { self }
     var title: String {
         switch self {
@@ -13,6 +13,7 @@ enum T1DashboardPage: String, CaseIterable, Identifiable {
         case .mapping: "按键映射"
         case .microphone: "麦克风"
         case .setup: "权限与启动"
+        case .diagnostics: "诊断日志"
         }
     }
     var icon: String {
@@ -21,6 +22,7 @@ enum T1DashboardPage: String, CaseIterable, Identifiable {
         case .mapping: "keyboard"
         case .microphone: "waveform"
         case .setup: "gearshape"
+        case .diagnostics: "list.bullet.rectangle"
         }
     }
 }
@@ -54,11 +56,16 @@ struct T1Dashboard: View {
     let authorize: () -> Void
     let modeChanged: () -> Void
     var connectionModeChanged: () -> Void = {}
+    var readOperationLog: (@escaping (String) -> Void) -> Void = { $0("") }
     @AppStorage("VoiceButtonControlsMic") private var micOnly = false
     @AppStorage(T1ConnectionMode.storageKey) private var connectionMode = T1ConnectionMode.automatic
+    @AppStorage(T1DictationLanguage.storageKey) private var dictationLanguage = T1DictationLanguage.simplifiedChinese
     @DashboardState<SMAppService.Status> private var loginStatus = .notRegistered
     @DashboardState<String?> private var setupMessage = nil
     @DashboardState<Bool> private var preparingModel = false
+    @DashboardState<[T1DictationLanguage: Bool]> private var installedDictationModels = [:]
+    @DashboardState<String?> private var modelMessage = nil
+    @DashboardState<String> private var operationLog = ""
 
     private var loginService: SMAppService {
         .agent(plistName: "local.codex.t1microphone.background.plist")
@@ -87,6 +94,7 @@ struct T1Dashboard: View {
                     case .mapping: mapping
                     case .microphone: microphone
                     case .setup: setup
+                    case .diagnostics: diagnostics
                     }
                 }
                 .frame(maxWidth: 740, alignment: .leading)
@@ -97,6 +105,28 @@ struct T1Dashboard: View {
         }
         .frame(minWidth: 760, minHeight: 530)
         .tint(accent)
+    }
+
+    private var diagnostics: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("日志仅保存在本机，保留今天和昨天，每天最多 64 KiB。最新记录在上方。")
+                .font(.callout).foregroundStyle(.secondary)
+            HStack {
+                Button("刷新") { readOperationLog { operationLog = $0 } }
+                Button("复制日志") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(operationLog, forType: .string)
+                }
+                .disabled(operationLog.isEmpty)
+            }
+            Text(operationLog.isEmpty ? "暂无诊断记录。" : operationLog)
+                .font(.system(.caption, design: .monospaced))
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+        }
+        .onAppear { readOperationLog { operationLog = $0 } }
     }
 
     private var sidebar: some View {
@@ -229,6 +259,7 @@ struct T1Dashboard: View {
                     .onChange(of: micOnly) { _, _ in modeChanged() }
                 Text("默认使用 Codex 听写。单击开始或结束，录音中双击作废。")
                     .font(.callout).foregroundStyle(.secondary)
+                Button("管理本机听写语言") { model.page = .setup }
             }
         }
     }
@@ -248,23 +279,11 @@ struct T1Dashboard: View {
                     .disabled(model.accessibility && model.inputMonitoring)
             }
             card("声音输入和本机听写", icon: "waveform") {
-                Text("要在 Codex、Siri 和通话中使用 T1，请在系统声音输入中选择 T1 USB-Compatible Mic。普通 App 的本机听写需要苹果的简体中文模型。")
+                Text("要在 Codex、Siri 和通话中使用 T1，请在系统声音输入中选择 T1 USB-Compatible Mic。")
                     .font(.callout).foregroundStyle(.secondary)
-                HStack {
-                    Button("打开声音输入") { openSettings("Sound-Settings.extension?input") }
-                    if #available(macOS 26.0, *) {
-                        Button(preparingModel ? "正在准备…" : "准备简体中文模型") {
-                            preparingModel = true
-                            Task { @MainActor in
-                                defer { preparingModel = false }
-                                do {
-                                    try await T1LocalTranscriber.prepareModel()
-                                    setupMessage = "简体中文模型已就绪。"
-                                } catch { setupMessage = "无法准备中文模型。\(error.localizedDescription)" }
-                            }
-                        }
-                        .disabled(preparingModel)
-                    }
+                Button("打开声音输入") { openSettings("Sound-Settings.extension?input") }
+                if #available(macOS 26.0, *) {
+                    dictationModelControls
                 }
             }
             card("后台运行", icon: "moon.zzz") {
@@ -286,6 +305,47 @@ struct T1Dashboard: View {
         .onAppear { loginStatus = loginService.status }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             loginStatus = loginService.status
+        }
+    }
+
+    @available(macOS 26.0, *)
+    private var dictationModelControls: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Picker("本机听写语言", selection: $dictationLanguage) {
+                ForEach(T1DictationLanguage.allCases, id: \.self) { language in
+                    Text(language.title).tag(language)
+                }
+            }
+            .disabled(preparingModel)
+            Text(dictationLanguage == .mixedChineseEnglish
+                 ? "同一句可混说中文和英文。首次下载约 94 MiB，识别在本机离线运行。"
+                 : "此设置用于普通 App 的本机听写。说中文时常夹英文，可选择「中英混合」。")
+                .font(.callout).foregroundStyle(.secondary)
+            Button(preparingModel ? "正在下载…" :
+                    installedDictationModels[dictationLanguage] == true ? "模型已就绪" : "下载所选语言模型") {
+                let language = dictationLanguage
+                preparingModel = true
+                modelMessage = nil
+                Task { @MainActor in
+                    defer { preparingModel = false }
+                    do {
+                        try await T1LocalTranscriber.prepareModel(for: language)
+                        installedDictationModels[language] = true
+                    } catch {
+                        modelMessage = error.localizedDescription
+                    }
+                }
+            }
+            .disabled(preparingModel || installedDictationModels[dictationLanguage] == true)
+            if let modelMessage { Text(modelMessage).font(.callout).foregroundStyle(.secondary) }
+        }
+        .onChange(of: dictationLanguage) { _, _ in modelMessage = nil }
+        .task(id: dictationLanguage) {
+            let language = dictationLanguage
+            if let installed = try? await T1LocalTranscriber.isModelInstalled(for: language),
+               !Task.isCancelled, !preparingModel {
+                installedDictationModels[language] = installed
+            }
         }
     }
 

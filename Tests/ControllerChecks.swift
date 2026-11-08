@@ -73,7 +73,7 @@ print("PASS 自定义设置迁移和主页快捷键")
             window.close()
         }
     }
-    print("PASS 四个页面的浅色和深色渲染")
+    print("PASS \(T1DashboardPage.allCases.count) 个页面的浅色和深色渲染")
 }
 
 if CommandLine.arguments.count > 1 {

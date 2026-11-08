@@ -4,9 +4,9 @@
 
 <img src="Assets/T1AppIcon.png" alt="RemoteVox 图标" width="80">
 
-通过蓝牙或 2.4G 接收器，把 T1 遥控器用作 Mac 的麦克风、飞鼠和快捷键控制器。支持简体中文本机听写、Codex 草稿听写和逐 App 按键映射。
+通过蓝牙或 2.4G 接收器，把 T1 遥控器用作 Mac 的麦克风、飞鼠和快捷键控制器。支持简体中文、英语和中英混合本机听写，以及 Codex 草稿听写和逐 App 按键映射。
 
-[下载安装包 v0.18.2](https://github.com/Mryang-wang/remotevox/releases/tag/v0.18.2) · [遥控器快速上手图](docs/images/quick-start-zh.svg)
+[下载安装包 v0.18.3](https://github.com/Mryang-wang/remotevox/releases/tag/v0.18.3) · [遥控器快速上手图](docs/images/quick-start-zh.svg)
 
 ![RemoteVox 的设备概览，显示连接状态和当前输入设备](docs/images/overview.png)
 
@@ -14,12 +14,12 @@
 
 需要 **Apple Silicon Mac、macOS 27 或更新版本**和支持蓝牙或兼容 2.4G 接收器的 T1 遥控器。安装 Core Audio 驱动需要管理员权限。
 
-1. 从 [v0.18.2 Release](https://github.com/Mryang-wang/remotevox/releases/tag/v0.18.2) 下载 `RemoteVox-0.18.2-arm64.pkg` 和同名 `.sha256` 文件。安装包包含 App 和兼容音频驱动。
+1. 从 [v0.18.3 Release](https://github.com/Mryang-wang/remotevox/releases/tag/v0.18.3) 下载 `RemoteVox-0.18.3-arm64.pkg` 和同名 `.sha256` 文件。安装包包含 App 和兼容音频驱动。
 2. 打开安装包并按提示重启。App 安装到 `/Applications/RemoteVox.app`，驱动安装到 `/Library/Audio/Plug-Ins/HAL/T1SiriInput.driver`。
 3. 打开「应用程序」里的 **RemoteVox**。使用蓝牙时，在「系统设置 → 蓝牙」配对 **T1-Remote**，并为 RemoteVox 允许蓝牙访问。使用 2.4G 时，插入接收器，把遥控器切到 2.4G。
 4. 在「**设备概览 → 连接方式**」选择「**自动（蓝牙优先）**」「**蓝牙**」或「**2.4G**」。手动选项决定 App 使用的链路。蓝牙模式可显示电量，2.4G 暂无电量读数。
 
-此测试安装包尚未经过 Apple 公证。如果 macOS 拦截，先确认来自上述 Release，并在下载目录运行 `shasum -a 256 -c RemoteVox-0.18.2-arm64.pkg.sha256`。校验通过后，如系统提供「仍要打开」，可按提示确认。 [Apple 的安全打开说明](https://support.apple.com/zh-cn/102445)
+此测试安装包尚未经过 Apple 公证。如果 macOS 拦截，先确认来自上述 Release，并在下载目录运行 `shasum -a 256 -c RemoteVox-0.18.3-arm64.pkg.sha256`。校验通过后，如系统提供「仍要打开」，可按提示确认。 [Apple 的安全打开说明](https://support.apple.com/zh-cn/102445)
 
 <details>
 <summary>从早期测试版迁移</summary>
@@ -51,12 +51,12 @@
 
 ### 普通 App 的本机听写
 
-1. 在「权限与启动」点「**准备简体中文模型**」。首次准备由 macOS 联网下载模型。
+1. 在「权限与启动 → 本机听写语言」选择「**简体中文**」（默认）、「**English（美国）**」或「**中英混合**」，再点「**下载所选语言模型**」。
 2. 在「按键映射 → 通用设置」开启「**语音键使用本机听写（测试）**」。
 3. 打开 TextEdit（文本编辑）等 App，点进可编辑文本框。**轻按一次语音键**，看到底部波纹后说话。安静时波纹显示为静止点线。
 4. **再轻按一次**结束。识别结果写入原文本框。
 
-普通 App 的简体中文听写在本机完成。RemoteVox 在内存中处理语音和文字。
+模型下载后，普通 App 的听写在本机完成。中英混合模型约 94 MiB，可在同一句里混说中文和英文。RemoteVox 在内存中处理语音和文字。
 
 ![本机听写浮窗，波纹下方提示再按一次输入](docs/images/dictation-waveform.png)
 
@@ -100,15 +100,21 @@
 | OK | 原生确认或飞鼠左键 | 键盘模式下可配置 | 键盘模式下可配置 |
 | 电源（蓝牙） | 锁屏 | 锁屏并熄屏 | 弹出关机确认 |
 
+关机确认框默认选中「取消」。左右键按按钮的屏幕位置切换选项，按 OK 执行。
+
 ## 常见问题
 
 - **App 显示等待 T1。** 唤醒遥控器，在蓝牙设置确认 `T1-Remote` 已连接，再检查 App 的蓝牙权限。使用 2.4G 时，检查接收器是否插好，遥控器是否切到 2.4G，并按一次键确认连接。
 - **找不到 T1 输入设备。** 安装后先重启，再在「声音 → 输入」查找 `T1 USB-Compatible Mic`。
-- **有波纹，但没有文字。** 确认已准备简体中文模型、已开启通用听写，并让光标留在原来的可编辑文本框。Codex 则检查默认声音输入和它自己的麦克风权限。
+- **有波纹，但没有文字。** 确认所选语言的模型已就绪、已开启本机听写，并让光标留在原来的可编辑文本框。Codex 则检查默认声音输入和它自己的麦克风权限。
 - **OK 仍然点击鼠标。** 关掉飞鼠后再测试键盘模式下的 OK 映射。
+
+左侧「诊断日志」可查看和复制连接变化、按键和执行结果。日志保留今天和昨天，每天最多 64 KiB。
 
 ## 构建与许可证
 
 安装带 macOS 27 SDK 的 Xcode Command Line Tools，在仓库根目录运行 `./test.sh`、`./build.sh` 和 `./package.sh`。App、安装包和 SHA-256 校验文件输出到 `Build/`。本地签名身份保存在当前用户的应用支持目录。
+
+中英混合听写使用 [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)、[ONNX Runtime](https://github.com/microsoft/onnxruntime) 和按需下载的[中英 Zipformer 模型](https://huggingface.co/csukuangfj/k2fsa-zipformer-chinese-english-mixed)。运行库的许可证随 App 附带。
 
 应用源码、脚本和文档采用 [MIT](LICENSE)。T1SiriInput 音频驱动基于 Existential Audio 的 BlackHole 源码，采用 [GNU GPL v3](Driver/LICENSE)。 [驱动源码及构建说明](Driver/README.md) · [BlackHole 上游](https://github.com/ExistentialAudio/BlackHole)

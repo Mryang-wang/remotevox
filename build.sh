@@ -77,9 +77,10 @@ done
 /bin/cp "$iconset/icon_256x256.png" "$contents/Resources/T1DashboardIcon.png"
 /bin/cp "$project/Sources/Bridge.swift" "$scratch/main.swift"
 /bin/cp "$project"/Sources/*.swift "$contents/Resources/"
+/bin/zsh "$project/Packaging/build-mixed-dictation.sh" "$contents" "$scratch" "$keychain" "$hash"
 /usr/bin/xcrun swiftc -O -target arm64-apple-macos27.0 "$scratch/main.swift" "$project/Sources/Controller.swift" \
   "$project/Sources/ButtonSettings.swift" "$project/Sources/Dashboard.swift" \
-  "$project/Sources/SystemNavigation.swift" "$project/Sources/Profiles.swift"   "$project/Sources/AppProfilesView.swift" "$project/Sources/ShortcutRecorder.swift"   "$project/Sources/InputEvents.swift" "$project/Sources/LocalDictation.swift" -o "$contents/MacOS/T1Microphone"
+  "$project/Sources/SystemNavigation.swift" "$project/Sources/Profiles.swift"   "$project/Sources/AppProfilesView.swift" "$project/Sources/ShortcutRecorder.swift"   "$project/Sources/InputEvents.swift" "$project/Sources/LocalDictation.swift" "$project/Sources/MixedDictation.swift" "$project/Sources/OperationLog.swift" -o "$contents/MacOS/T1Microphone"
 /usr/bin/codesign --force --sign "$hash" --keychain "$keychain" --timestamp=none \
   --requirements "$scratch/designated.req" "$app"
 /usr/bin/codesign --verify --strict "$app"

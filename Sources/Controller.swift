@@ -47,6 +47,8 @@ final class T1Controller {
     private var powerClick: DispatchWorkItem?
     private var powerHold: DispatchWorkItem?
     private var longFired = false
+    private var shutdownWindow: NSWindow?
+    private var shutdownClickCaptured = false
     private var voiceTarget: pid_t?
     private var voiceWindow: AXUIElement?
     private var voiceStarted = 0.0
@@ -58,6 +60,7 @@ final class T1Controller {
     private let openMic: () -> Bool
     private let closeMic: () -> Void
     private let log: (String) -> Void
+    private let trace: (String) -> Void
     private let handlesVoiceKey: () -> Bool
     private let localVoiceKey: () -> Void
     private let cancelLocalVoice: () -> Void
@@ -72,6 +75,7 @@ final class T1Controller {
 
     init(openMic: @escaping () -> Bool, audioReady: @escaping () -> Bool, closeMic: @escaping () -> Void,
          handlesVoiceKey: @escaping () -> Bool, log: @escaping (String) -> Void,
+         trace: @escaping (String) -> Void = { _ in },
          profiles: T1ProfileStore = .shared, localVoiceKey: @escaping () -> Void = {},
          cancelLocalVoice: @escaping () -> Void = {}, connectionChanged: @escaping () -> Void = {},
          receiverVoiceKey: @escaping () -> Bool = { false }) {
@@ -84,6 +88,7 @@ final class T1Controller {
         self.connectionChanged = connectionChanged
         self.receiverVoiceKey = receiverVoiceKey
         self.log = log
+        self.trace = trace
         self.profiles = profiles
         profileObserver = NotificationCenter.default.addObserver(forName: T1ProfileStore.changed, object: profiles, queue: .main) { [weak self] _ in
             self?.configurationChanged()
@@ -144,6 +149,7 @@ final class T1Controller {
         guard mode != connectionMode else { return }
         let previous = transport
         connectionMode = mode
+        trace("连接偏好：\(mode.title)")
         if transport != previous { remoteDisconnected() }
         applyMapping()
         connectionChanged()
@@ -152,6 +158,7 @@ final class T1Controller {
     private func deviceChanged(_ device: IOHIDDevice, attached: Bool) {
         let previous = transport
         let isReceiver = IOHIDDeviceGetProperty(device, kIOHIDVendorIDKey as CFString) as? Int == 0x1915
+        let wasAttached = isReceiver ? receiverAttached : !bluetoothDevices.isEmpty
         if isReceiver {
             if attached { receiverDevices.insert(device) }
             else if receiverDevices.remove(device) != nil && !receiverAttached { receiverActive = false }
@@ -159,6 +166,11 @@ final class T1Controller {
             if attached { bluetoothDevices.insert(device) }
             else { bluetoothDevices.remove(device) }
         }
+        let isAttached = isReceiver ? receiverAttached : !bluetoothDevices.isEmpty
+        if isAttached != wasAttached {
+            trace("\(isReceiver ? "2.4G 接收器" : "蓝牙 HID")：\(isAttached ? "已接入" : "已断开")")
+        }
+        if transport != previous { trace("控制通道：\(transport == .bluetooth ? "蓝牙" : "2.4G")") }
         if transport != previous || (!attached && (isReceiver ? previous == .receiver && !receiverAttached
                                                              : previous == .bluetooth && bluetoothDevices.isEmpty)) {
             remoteDisconnected()
@@ -171,6 +183,7 @@ final class T1Controller {
         if receiverDevices.contains(device) {
             if !receiverActive && data.dropFirst(id == 0 ? 0 : 1).contains(where: { $0 != 0 }) {
                 receiverActive = true
+                trace("2.4G：收到接收器首个输入")
                 connectionChanged()
             }
             guard transport == .receiver else { return }
@@ -214,6 +227,7 @@ final class T1Controller {
         systemNavigation.close()
         chatActionGeneration += 1
         mouseBackCaptured = false
+        shutdownClickCaptured = false
         capturedNavigation.removeAll()
         keys.removeAll()
         powerClick?.cancel()
@@ -250,10 +264,14 @@ final class T1Controller {
     private func update(_ key: UInt32, down: Bool) {
         if down {
             guard keys.insert(key).inserted else { return }
+            if let name = T1Button(rawValue: key)?.title ?? (key == 0x10081 ? "电源键" : key == 0xC0221 ? "语音键" : nil) {
+                trace("收到 \(transport == .bluetooth ? "蓝牙" : "2.4G") \(name)")
+            }
         } else {
             guard keys.remove(key) != nil else { return }
         }
         guard AXIsProcessTrusted(), !profiles.recordingShortcut else { return }
+        guard shutdownWindow == nil else { return }
         if key == 0x10081 {
             power(down)
             return
@@ -332,10 +350,20 @@ final class T1Controller {
 
     private func perform(_ binding: T1Binding, button: T1Button, gesture: T1Gesture, pid: pid_t) {
         let action = binding.action
-        guard action != .none && action != .inherit, let front = NSWorkspace.shared.frontmostApplication,
-              front.processIdentifier == pid, front.bundleIdentifier != "com.apple.loginwindow" else { return }
+        guard action != .none && action != .inherit else {
+            trace("\(button.title) \(gesture.title)：无绑定动作")
+            return
+        }
+        guard let front = NSWorkspace.shared.frontmostApplication,
+              front.processIdentifier == pid, front.bundleIdentifier != "com.apple.loginwindow" else {
+            trace("\(button.title) \(gesture.title)：目标窗口已切换，跳过动作")
+            return
+        }
         if action == .native {
-            if let code = button.navigationKeyCode { post(code, flags: []) }
+            if let code = button.navigationKeyCode {
+                post(code, flags: [])
+                trace("派发 \(button.title) 原生动作 [\(front.bundleIdentifier ?? "未知 App")]")
+            }
             return
         }
         let definition = action.definition
@@ -373,7 +401,7 @@ final class T1Controller {
             post(code, flags: definition.modifiers)
             if action == .findInChat { cacheCodexSearch(after: pid) }
         }
-        log("T1 \(button.title) \(gesture.title)：\(binding.shortcut?.label ?? definition.title)")
+        log("派发 \(button.title) \(gesture.title) → \(definition.title) [\(front.bundleIdentifier ?? "未知 App")]")
     }
 
     private func openChatGPT(_ action: T1ButtonAction, from pid: pid_t) {
@@ -434,6 +462,7 @@ final class T1Controller {
             first.cancel()
             powerClick = nil
             lock()
+            trace("电源键双击：已请求锁屏并熄屏")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
                 let task = Process()
                 task.executableURL = URL(fileURLWithPath: "/usr/bin/pmset")
@@ -441,7 +470,11 @@ final class T1Controller {
                 try? task.run()
             }
         } else {
-            let work = DispatchWorkItem { [weak self] in self?.powerClick = nil; self?.lock() }
+            let work = DispatchWorkItem { [weak self] in
+                self?.powerClick = nil
+                self?.lock()
+                self?.trace("电源键单击：已请求锁屏")
+            }
             powerClick = work
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.36, execute: work)
         }
@@ -450,13 +483,51 @@ final class T1Controller {
     private func lock() { post(12, flags: [.maskControl, .maskCommand]) }
 
     private func confirmShutdown() {
+        systemNavigation.close()
         NSApp.activate(ignoringOtherApps: true)
         let dialog = NSAlert()
         dialog.messageText = "关闭这台 Mac？"
-        dialog.informativeText = "已长按 T1 电源键。确认后将关闭 Mac。"
-        dialog.addButton(withTitle: "取消")
-        dialog.addButton(withTitle: "关机")
-        guard dialog.runModal() == .alertSecondButtonReturn else { return }
+        dialog.informativeText = "用遥控器左右键选择，按 OK 确认。"
+        let shutdown = dialog.addButton(withTitle: "关机")
+        let cancel = dialog.addButton(withTitle: "取消")
+        let window = dialog.window
+        var selected = cancel
+        func select(_ button: NSButton) {
+            selected = button
+            shutdown.keyEquivalent = button === shutdown ? "\r" : ""
+            cancel.keyEquivalent = button === cancel ? "\r" : "\u{1b}"
+            window.defaultButtonCell = button.cell as? NSButtonCell
+        }
+        select(cancel)
+        trace("电源键长按：打开关机确认框")
+        shutdownWindow = window
+        let monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            guard NSApp.modalWindow === window else { return event }
+            let modifiers: NSEvent.ModifierFlags = [.command, .control, .option, .shift]
+            guard event.modifierFlags.intersection(modifiers).isEmpty else { return event }
+            switch event.keyCode {
+            case 123, 124:
+                let shutdownX = shutdown.convert(shutdown.bounds, to: nil).midX
+                let cancelX = cancel.convert(cancel.bounds, to: nil).midX
+                let shutdownOnLeft = shutdownX < cancelX
+                let pressedLeft = event.keyCode == 123
+                select(pressedLeft == shutdownOnLeft ? shutdown : cancel)
+                if !event.isARepeat { self.trace("关机确认：选中「\(selected.title)」") }
+            case 36, 76:
+                if !event.isARepeat { selected.performClick(nil) }
+            case 53: cancel.performClick(nil)
+            default: return event
+            }
+            return nil
+        }
+        let response = dialog.runModal()
+        if let monitor { NSEvent.removeMonitor(monitor) }
+        shutdownWindow = nil
+        guard response == .alertFirstButtonReturn else {
+            log("T1 关机确认：已取消")
+            return
+        }
+        log("T1 关机确认：已确认")
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
         task.arguments = ["-e", "tell application \"System Events\" to shut down"]
@@ -699,7 +770,8 @@ final class T1Controller {
 
     private func setupEventTap() {
         guard eventTap == nil else { return }
-        let types: [CGEventType] = [.keyDown, .keyUp, .rightMouseDown, .rightMouseUp, .rightMouseDragged]
+        let types: [CGEventType] = [.keyDown, .keyUp, .rightMouseDown, .rightMouseUp, .rightMouseDragged,
+                                   .leftMouseDown, .leftMouseUp, .leftMouseDragged]
         let mask = types.reduce(CGEventMask(0)) { $0 | (1 << $1.rawValue) }
         guard let tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
             eventsOfInterest: mask, callback: { _, type, event, context in
@@ -720,10 +792,22 @@ final class T1Controller {
     private func handleEvent(_ type: CGEventType, _ event: CGEvent) -> Bool {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if let eventTap { CGEvent.tapEnable(tap: eventTap, enable: true) }
+            trace("按键监听曾暂停，已尝试重新启用")
             return false
         }
+        let leftClick = type == .leftMouseDown || type == .leftMouseUp || type == .leftMouseDragged
+        if leftClick && shutdownWindow == nil && !shutdownClickCaptured { return false }
         guard event.getIntegerValueField(.eventSourceUserData) != T1DeviceEvent.tag,
               T1DeviceEvent.transport(event) == transport else { return false }
+        if leftClick {
+            if type == .leftMouseDown { shutdownClickCaptured = shutdownWindow?.isKeyWindow == true }
+            guard shutdownClickCaptured else { return false }
+            if type == .leftMouseUp {
+                shutdownClickCaptured = false
+                if shutdownWindow?.isKeyWindow == true { post(36, flags: [], to: getpid()) }
+            }
+            return true
+        }
         if type == .keyDown || type == .keyUp {
             let code = event.getIntegerValueField(.keyboardEventKeycode)
             if T1DeviceEvent.placeholderKeys.contains(code) { return true }
@@ -735,19 +819,24 @@ final class T1Controller {
                 update(button.rawValue, down: false)
                 return true
             }
+            guard shutdownWindow == nil else { return false }
             if capturedNavigation.contains(button) { return true }
             let modifiers: CGEventFlags = [.maskCommand, .maskShift, .maskAlternate, .maskControl]
             guard !systemNavigation.isActive, !profiles.recordingShortcut,
                   event.getIntegerValueField(.keyboardEventAutorepeat) == 0,
-                  event.flags.intersection(modifiers).isEmpty,
-                  profiles.customizesNavigation(button, in: NSWorkspace.shared.frontmostApplication?.bundleIdentifier) else {
+                  event.flags.intersection(modifiers).isEmpty else {
+                return false
+            }
+            let appID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+            guard profiles.customizesNavigation(button, in: appID) else {
+                trace("收到 \(transport == .bluetooth ? "蓝牙" : "2.4G") \(button.title)，原生直通 [\(appID ?? "未知 App")]")
                 return false
             }
             capturedNavigation.insert(button)
             update(button.rawValue, down: true)
             return true
         }
-        guard !systemNavigation.isActive, !profiles.recordingShortcut else { return false }
+        guard shutdownWindow == nil, !systemNavigation.isActive, !profiles.recordingShortcut else { return false }
         let appID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         guard !profiles.isNative(appID) else { return false }
         if type == .rightMouseDown, let pid = foregroundPID(), let button = codexSearchCloseButton(pid) {
@@ -911,6 +1000,8 @@ final class T1Controller {
             if value(button, kAXEnabledAttribute) as? Bool != false,
                let point = buttonPoint(button), click(at: point, pid: pid) {
                 log("T1 OK：已请求\(buttonLabel) Codex 当前回复")
+            } else {
+                log("T1 OK：未能点击 Codex「\(buttonLabel)」")
             }
         } else if foregroundPID() == pid {
             post(36, flags: [])
@@ -1003,7 +1094,7 @@ final class T1Controller {
             }
             return false
         }
-        log("听写控件：" + names.sorted().prefix(10).joined(separator: " | "))
+        log("听写控件：发现 \(names.count) 个匹配标签")
     }
 
 }

@@ -17,7 +17,7 @@ mkdir -p "$out"
 /bin/cp "$project/Tests/ControllerChecks.swift" "$scratch/main.swift"
 xcrun swiftc -O "$scratch/main.swift" "$src/ButtonSettings.swift" \
   "$src/Dashboard.swift" "$src/Profiles.swift" "$src/AppProfilesView.swift" \
-  "$src/ShortcutRecorder.swift" "$src/LocalDictation.swift" -o "$scratch/controller-checks"
+  "$src/ShortcutRecorder.swift" "$src/LocalDictation.swift" "$src/MixedDictation.swift" -o "$scratch/controller-checks"
 "$scratch/controller-checks" "$out/previews" "$project/Assets/T1AppIcon.png"
 
 # Exercise the real report and gesture decoder without delivering key events.

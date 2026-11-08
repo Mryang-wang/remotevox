@@ -428,6 +428,7 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
     },
        handlesVoiceKey: { [weak self] in self.map { !$0.buttonStartsRecording && $0.canControlDictation } ?? false },
        log: { [weak self] in self?.log($0) },
+       trace: { [weak self] in self?.log($0) },
        localVoiceKey: { [weak self] in self?.localDictation.voicePressed() },
        cancelLocalVoice: { [weak self] in self?.localDictation.cancel() },
        connectionChanged: { [weak self] in self?.connectionChanged() },
@@ -446,6 +447,7 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
        })
     private var panel: NSPanel?
     private let dashboard = T1DashboardModel()
+    private lazy var operationLog = T1OperationLog()
     private var nextMeterUpdate: TimeInterval = 0
     private var central: CBCentralManager?
     private var remote: CBPeripheral?
@@ -493,6 +495,8 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
             return
         }
         if !testMode {
+            let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "开发版"
+            log("RemoteVox \(version) 启动")
             T1Button.migrateControllerDefaults()
             if !AXIsProcessTrusted() || IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) != kIOHIDAccessTypeGranted {
                 dashboard.page = .setup
@@ -570,17 +574,24 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        if testMode { log("CONNECTED") }
+        log(testMode ? "CONNECTED" : "蓝牙语音：已连接，开始查找服务")
         peripheral.discoverServices([uuid[0], batteryService])
     }
 
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
+        if !testMode { log("蓝牙语音：连接失败\(bluetoothError(error))") }
         resetRemote()
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+        if !testMode { log("蓝牙语音：已断开\(bluetoothError(error))") }
         resetRemote()
         if transport == .bluetooth { setStatus("T1 已断开，等待重连") }
+    }
+
+    private func bluetoothError(_ error: Error?) -> String {
+        guard let error = error as NSError? else { return "" }
+        return "（\(error.domain) \(error.code)）"
     }
 
     private func resetRemote() {
@@ -599,6 +610,7 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         guard peripheral === remote else { return }
         guard let service = peripheral.services?.first(where: { $0.uuid == uuid[0] }) else {
+            if !testMode { log("蓝牙语音：未找到所需服务\(bluetoothError(error))") }
             central?.cancelPeripheralConnection(peripheral)
             return
         }
@@ -619,6 +631,7 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
         }
         tx = chars.first(where: { $0.uuid == uuid[1] })
         guard tx != nil, chars.count == 3 else {
+            if !testMode { log("蓝牙语音：服务特征不完整\(bluetoothError(error))") }
             central?.cancelPeripheralConnection(peripheral)
             return
         }
@@ -630,6 +643,7 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
     func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
         guard peripheral === remote, characteristic.uuid != batteryLevel else { return }
         guard error == nil, characteristic.isNotifying else {
+            if !testMode { log("蓝牙语音：订阅通知失败\(bluetoothError(error))") }
             central?.cancelPeripheralConnection(peripheral)
             return
         }
@@ -650,13 +664,15 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
             receivePCM(pcm)
             return
         }
-        if testMode || ((dictationFramesAtStart != nil || localCapture) && command != 0x08) {
+        if testMode {
             log("CTL " + data.map { String(format: "%02x", $0) }.joined())
         }
         switch command {
         case 0x0B:
+            let wasReady = bluetoothReady
             bluetoothReady = data == Data([0x0B, 0, 4, 0, 2, 0, 134, 0, 134])
             guard transport == .bluetooth else { return }
+            if !testMode && !wasReady && bluetoothReady { log("蓝牙语音：握手完成") }
             setStatus(bluetoothReady ? idleStatus : "T1 返回了未验证的音频格式")
             if bluetoothReady {
                 if testMode || (!controller.hasHIDInput &&
@@ -774,8 +790,8 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
         let now = Date()
         if let lastPacket {
             widestGap = max(widestGap, now.timeIntervalSince(lastPacket))
-        } else if testMode || dictationFramesAtStart != nil || automaticMic {
-            log("FIRST_FRAME")
+        } else {
+            log(testMode ? "FIRST_FRAME" : "麦克风：收到首帧音频")
         }
         lastPacket = now
         packets += 1
@@ -868,7 +884,11 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
     private func stopRecording() { finish("manual stop") }
 
     private func log(_ message: String) {
-        FileHandle.standardOutput.write(Data((message + "\n").utf8))
+        if testMode {
+            FileHandle.standardOutput.write(Data((message + "\n").utf8))
+        } else if !arguments.contains("--ui-preview") {
+            operationLog.record(message)
+        }
     }
 
     private func logSummary(_ state: String) {
@@ -895,21 +915,21 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
             localCapture = false
             localDictation.streamStopped()
         }
+        if !testMode { log("麦克风：已停止（\(reason)，\(packets) 包）") }
         if automaticMic {
             automaticMic = false
-            log("按需收音已停止：\(reason)，共 \(packets) 包")
         }
         if dictationFramesAtStart != nil {
             dictationFramesAtStart = nil
-            log("听写音频已停止：\(reason)，共 \(packets) 包")
             if !testMode { controller.microphoneInterrupted() }
         }
     }
 
     private func setStatus(_ status: String) {
+        let changed = dashboard.status != status
         dashboard.status = status
         refreshDashboard()
-        if !testMode { log(status) }
+        if !testMode && changed { log(status) }
     }
 
     private func refreshDashboard() {
@@ -947,7 +967,8 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
                     self.refreshDashboard()
                 },
                 modeChanged: { [weak self] in self?.changeButtonMode() },
-                connectionModeChanged: { [weak self] in self?.selectConnection() }))
+                connectionModeChanged: { [weak self] in self?.selectConnection() },
+                readOperationLog: { [weak self] completion in self?.operationLog.read(completion) }))
             window.center()
             panel = window
         }
@@ -966,6 +987,10 @@ final class Bridge: NSObject, NSApplicationDelegate, CBCentralManagerDelegate, C
         if !testMode { controller.stop() }
         timer?.invalidate()
         sink.close()
+        if !testMode && !arguments.contains("--ui-preview") {
+            log("RemoteVox 退出")
+            operationLog.flush()
+        }
     }
 }
 
